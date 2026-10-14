@@ -32,6 +32,7 @@ const anim2FootP = [new q(), new q()], anim2FootQ = [new Un(), new Un()];
 const anim2Up = new q(0, 1, 0);
 const anim2Tmp = new Float32Array(3);
 
+let ANIM2_BANK_SIGN = -1;
 function anim2Init(r, o) {
   try {
     const rnd = anim2Rng((o.seed >>> 0) ^ 0x5bd1e995);
@@ -79,8 +80,18 @@ function anim2Init(r, o) {
         b, q0: b.quaternion.clone(), sg: m[1] === "Left" ? -1 : 1,
         w: thumb ? (seg === 1 ? 0 : 0.35) : [0, 0.85, 1, 0.7][seg],
         spread: thumb ? 0 : { Index: 1, Middle: 0.3, Ring: -0.4, Pinky: -1 }[m[2]],
+        h: m[1] === "Left" ? 0 : 1,
+        fi: { Thumb: 0, Index: 1, Middle: 2, Ring: 3, Pinky: 4 }[m[2]],
       });
     }
+    // Motion 2.3: curvatura por dedo e por mão (gestos: apontar, punho, mão espalmada)
+    s.fc = [new Float32Array(5), new Float32Array(5)];
+    s.fcA = [new Float32Array(5).fill(99), new Float32Array(5).fill(99)];
+    s.fsp = [0, 0];
+    s.hand0 = [r.bones[anim2B.handL].quaternion.clone(), r.bones[anim2B.handR].quaternion.clone()];
+    s.gw = 0;
+    s.garm = 1;
+    s.bank = 0;
     // direção "cima" da cabeça na pose de ligação (referência de cabeça nivelada)
     r.root.updateWorldMatrix(true, true);
     r.bones[anim2B.head].getWorldQuaternion(anim2Q1);
@@ -99,10 +110,110 @@ function anim2Reset(s) {
 }
 
 // Fase do jogo e fôlego, alimentados pelo loop principal antes de cada update.
-function anim2Feed(m, st) {
+function anim2Feed(m, st, G) {
   const ph = st.hud.phase;
   m.anim.calm = ph === "play" || ph === "replay" || ph === "kickoff" ? 0 : 1;
   m.anim.fatigue = 1 - (m.stamina ?? 1);
+  if (G && !anim2Off && !(globalThis.__anim2cfg && globalThis.__anim2cfg.noSocial))
+    try {
+      anim2Social(m, st, G, ph);
+    } catch (err) {
+      anim2Fail(err);
+    }
+}
+
+// Motion 2.3: linguagem corporal entre jogadores (só visual, não muda decisões do jogo).
+//  - "pede a bola": companheiro livre e à frente do condutor levanta a mão e olha para ele
+//  - bola parada contra: goleiro organiza a barreira/área apontando; zagueiros apontam quem marcar
+//  - bola parada a favor (escanteio/falta): atacantes na área levantam o braço
+//  - chute para fora (tiro de meta): o finalizador leva as mãos à cabeça ou à cintura
+const anim2SocRnd = anim2Rng(0x2c1b3c6d);
+function anim2Social(m, st, G, ph) {
+  const e = m.anim, T = G.time, A = G.actors;
+  let w = G.__a2;
+  if (!w) w = G.__a2 = { sf: null, sfT: -9, ph, active: { home: 0, away: 0 }, sad: null, sadAt: 0 };
+  if (m === A[0]) {
+    // uma vez por quadro: finalização em voo, troca de fase, gestos ativos por time
+    if (G.shotFlight && G.shotFlight.actor) (w.sf = G.shotFlight.actor), (w.sfT = T);
+    if (ph !== w.ph) {
+      w.ph = ph;
+      const rs = st.hud.restart;
+      if (ph === "stoppage" && rs && rs.kind === "goalKick" && w.sf && T - w.sfT < 3 && w.sf.side !== rs.side)
+        (w.sad = w.sf), (w.sadAt = T + 0.35);
+      w.sf = null;
+    }
+    if (w.sad && T >= w.sadAt) {
+      const a = w.sad;
+      if (!a.anim.action && w.ph === "stoppage") {
+        G.playAction(a, anim2SocRnd() < 0.6 ? "handsOnHead" : "handsOnHips");
+        a.__a2sadEnd = T + 1.7 + anim2SocRnd() * 0.6;
+      }
+      w.sad = null;
+    }
+    w.active.home = w.active.away = 0;
+    for (const x of A) if (x.__a2g && x.__a2g.until > T) w.active[x.side]++;
+  }
+  // fim do lamento (as ações de lamento ficam em loop)
+  if (m.__a2sadEnd && (T > m.__a2sadEnd || ph !== "stoppage")) {
+    if (e.action === "handsOnHead" || e.action === "handsOnHips") e.action = null;
+    m.__a2sadEnd = 0;
+  }
+  let g = m.__a2g;
+  if (!g) g = m.__a2g = { next: T + 1.5 + anim2SocRnd() * 4, until: -1, kind: null, chk: T + anim2SocRnd() * 0.3, px: 0, pz: 0 };
+  const own = G.owner, gk = m.data.position === "GOL", rs = st.hud.restart;
+  const free = !e.action && (e.stance === "none" || !e.stance || (gk && e.stance === "gk")) && e.visible !== false;
+  // gesto ativo: confere se ainda faz sentido
+  if (g.until > T) {
+    const ok = g.kind === "call" ? free && ((ph === "play" && own && own.side === m.side && own !== m) || ph === "stoppage") : free && ph === "stoppage";
+    if (!ok) (g.until = -1), (g.next = T + 2);
+  }
+  if (g.until <= T && T >= g.next && T >= g.chk && free) {
+    g.chk = T + 0.3;
+    const dir = G.attackDirection(m.side);
+    let start = null;
+    if (ph === "play" && own && own !== m && own.side === m.side && !gk && w.active[m.side] < 2) {
+      const dx = e.x - own.anim.x, dz = e.z - own.anim.z, d = Math.hypot(dx, dz);
+      if (d > 9 && d < 34 && dx * dir > -2 && e.speed < 7) {
+        let near = 99;
+        for (const x of A) if (x.side !== m.side && x.anim.visible !== false) near = Math.min(near, Math.hypot(x.anim.x - e.x, x.anim.z - e.z));
+        if (near > 4.5 && anim2SocRnd() < 0.3) start = ["call", 0.9 + anim2SocRnd() * 0.5, e.x + dir * 8, e.z, 4 + anim2SocRnd() * 5];
+      }
+    } else if (ph === "stoppage" && rs && own && (rs.kind === "corner" || rs.kind === "freeKick") && (gk || w.active[m.side] < 3)) {
+      const ox = own.anim.x, oz = own.anim.z, HL = Ce.halfL;
+      const danger = Math.abs(ox) > HL - 35; // bola parada perto de alguma área
+      if (rs.side !== m.side && danger && gk && anim2SocRnd() < 0.55) {
+        // goleiro: aponta entre a bola e o gol, organizando
+        const gx = -G.attackDirection(m.side) * (HL - 3);
+        start = ["org", 1.4 + anim2SocRnd() * 0.6, Ts(gx, ox, 0.55), oz * 0.45 + (anim2SocRnd() - 0.5) * 8, 1.2 + anim2SocRnd() * 1.8];
+      } else if (rs.side !== m.side && danger && !gk && own !== m && anim2SocRnd() < 0.12) {
+        // zagueiro: aponta o adversário mais perto (quem marcar)
+        let best = null, bd = 12;
+        for (const x of A)
+          if (x.side !== m.side && x !== own) {
+            const dd = Math.hypot(x.anim.x - e.x, x.anim.z - e.z);
+            if (dd < bd) (bd = dd), (best = x);
+          }
+        if (best) start = ["mark", 1.1 + anim2SocRnd() * 0.4, best.anim.x, best.anim.z, 5 + anim2SocRnd() * 5];
+      } else if (rs.side === m.side && danger && own !== m && !gk && w.active[m.side] < 3 && Math.abs(e.x) > HL - 22 && Math.sign(e.x) === dir && anim2SocRnd() < 0.2) {
+        start = ["call", 1.2 + anim2SocRnd() * 0.6, e.x + dir * 2, e.z, 3 + anim2SocRnd() * 4];
+      }
+    }
+    if (start) {
+      (g.kind = start[0]), (g.until = T + start[1]), (g.px = start[2]), (g.pz = start[3]), (g.next = g.until + start[4]);
+      w.active[m.side]++;
+    }
+  }
+  const on = g.until > T;
+  e.gestW = on ? 1 : 0;
+  if (on) {
+    e.gestKind = g.kind;
+    e.gestPX = g.px;
+    e.gestPZ = g.pz;
+    // olhar: quem pede olha para o condutor; quem organiza olha para onde aponta
+    const lk = g.kind === "call" && own ? own.anim : null;
+    e.gestLX = lk ? lk.x : g.px;
+    e.gestLZ = lk ? lk.z : g.pz;
+  }
 }
 
 // Camada de corpo: roda depois das camadas originais e antes do olhar e dos IKs de locomoção.
@@ -145,6 +256,9 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     }
     s.drive = yi(s.drive, qt(2, 6.5, s.aLf) * (1 - qt(4.5, 7.5, o)) * mv, 10, dt);
     s.brake = yi(s.brake, qt(-3.5, -11, s.aLf) * qt(1.2, 3.5, o) * mv, 12, dt);
+    // Motion 2.3: inclinação na curva (o corpo deita para dentro, proporcional à aceleração lateral)
+    const bankG = C && C.bank !== undefined ? C.bank : 1;
+    s.bank = yi(s.bank, Ne(s.aTf * 0.017, -0.2, 0.2) * qt(2.2, 4.5, o) * mv * bankG, 8, dt);
 
     // ---------------- respiração
     s.breathPh += dt * (0.24 + 0.5 * puff) * s.breathK * Math.PI * 2;
@@ -193,7 +307,8 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     const hipPitch = (s.drive * 8 - s.brake * 7 + tk * 26) * Ms;
     if (Math.abs(hipPitch) > 1e-5) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, hipPitch));
     const hipRoll = (sway * 1.2 * shiftW + cp * 4.2) * Ms;
-    if (Math.abs(hipRoll) > 1e-6) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, hipRoll));
+    const roll2 = hipRoll + ANIM2_BANK_SIGN * s.bank;
+    if (Math.abs(roll2) > 1e-6) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, roll2));
 
     // ---------------- coluna
     const spP =
@@ -299,6 +414,48 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
       }
     }
 
+    // ---------------- Motion 2.3: gestos (pede a bola, aponta, organiza) com IK de braço
+    const gwT = (e.gestW || 0) * free * (1 - tired) * (1 - 0.7 * Math.max(r.stanceW.shield, r.stanceW.jockey)) * (C && C.noGesture ? 0 : 1);
+    if (gwT > 0 && s.gw < 0.05) {
+      // escolhe o braço do lado para onde vai apontar (+ = esquerda do jogador)
+      const rel = Es(e.heading, Math.atan2((e.gestPX ?? e.x) - e.x, (e.gestPZ ?? e.z) - e.z));
+      s.garm = rel > 0.15 ? 0 : rel < -0.15 ? 1 : s.garm;
+      s.gkind = e.gestKind;
+    }
+    if (gwT > 0) (s.gpx = e.gestPX), (s.gpz = e.gestPZ);
+    s.gw = yi(s.gw, gwT, gwT > s.gw ? 7 : 5, dt);
+    if (s.gw > 0.01 && s.gpx !== undefined) {
+      const k = s.garm, gw = Eo(s.gw * 1.15) ** 2 * (3 - 2 * Eo(s.gw * 1.15));
+      const arm = D[k ? B.armR : B.armL], fa = D[k ? B.faR : B.faL], hand = D[k ? B.handR : B.handL];
+      let dx = s.gpx - e.x, dz = s.gpz - e.z;
+      const L = Math.hypot(dx, dz) || 1;
+      (dx /= L), (dz /= L);
+      // tronco vira um pouco para o lado do gesto
+      const rel = Ne(Es(e.heading, Math.atan2(dx, dz)), -1.4, 1.4);
+      D[B.sp2].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, rel * 0.18 * gw));
+      arm.getWorldPosition(anim2V1);
+      fa.getWorldPosition(anim2V2);
+      hand.getWorldPosition(anim2V3);
+      const len = anim2V1.distanceTo(anim2V2) + anim2V2.distanceTo(anim2V3);
+      anim2Tgt.copy(anim2V1);
+      if (s.gkind === "call") {
+        // braço alto, mão aberta, leve aceno
+        const bob = Math.sin(c * 7 + s.ph[0]) * 0.04;
+        anim2Tgt.x += dx * 0.35 * len;
+        anim2Tgt.z += dz * 0.35 * len;
+        anim2Tgt.y += (0.9 + bob) * len;
+      } else {
+        // aponta na horizontal (goleiro "balança" o braço organizando)
+        const wave = s.gkind === "org" ? Math.sin(c * 4.4 + s.ph[1]) * 0.18 : 0;
+        const px = dx * Math.cos(wave) - dz * Math.sin(wave), pz = dx * Math.sin(wave) + dz * Math.cos(wave);
+        anim2Tgt.x += px * 0.93 * len;
+        anim2Tgt.z += pz * 0.93 * len;
+        anim2Tgt.y += 0.2 * len;
+      }
+      Rh(arm, fa, hand, anim2Tgt, gw, e.heading);
+      hand.quaternion.slerp(s.hand0[k], gw * 0.85);
+    }
+
     // ---------------- cabeça estabilizada (reflexo de manter o olhar nivelado)
     const stab = (0.12 + 0.48 * g) * free * (1 - 0.6 * stW) * (1 - tired);
     if (stab > 0.01) {
@@ -351,6 +508,12 @@ function anim2Gaze(r, e, V, Z, a, g, o, dt) {
     s.scanW = yi(s.scanW, carry * (c < s.scanUntil ? 1 : 0), 10, dt);
     V = V * (1 - s.scanW * 0.6) + s.scanW * s.scanDir * 0.35 + dv;
     Z = Z * (1 - s.scanW * 0.85) - s.scanW * 0.08 + dz + s.tired * 0.12 * (0.5 + 0.5 * Math.sin(c * 0.5 + s.ph[2]));
+    // gesto: olha para o condutor (pedindo a bola) ou para onde aponta
+    if (s.gw > 0.05 && e.gestLX !== undefined) {
+      const W = Ne(Es(e.heading, Math.atan2(e.gestLX - e.x, e.gestLZ - e.z)), -1.2, 1.2);
+      V = Ts(V, W, Eo(s.gw * 1.2) * 0.85);
+      Z *= 1 - 0.6 * s.gw;
+    }
     s.gz = Ne(Z, -0.5, 0.75);
     return Ne(V, -1.25, 1.25);
   } catch (err) {
@@ -461,16 +624,73 @@ function anim2Fingers(r, s, e, dt, a) {
   want = Ts(want, 0.4, Math.max(Eo(e.hold ?? 0), grip));
   if (C && C.curl !== undefined) want = C.curl;
   s.curl = yi(s.curl, want, 9, dt);
+  // Motion 2.3: pose por dedo. Ação com gesto de mão (punho, apontar, espalmada...) e o gesto
+  // social (pede a bola = mão aberta; aponta/organiza = indicador esticado) por cima da curvatura base.
+  const D = r.bones, ap = ANIM2_HANDS[r.cur.id] || ANIM2_HANDS[r.fade.id], aw = ap ? (ANIM2_HANDS[r.cur.id] ? r.cur.w : r.fade.w) : 0;
+  let pointHand = -1;
+  if (ap && ap.one && aw > 0.01) {
+    // gestos de uma mão só: vale para a mão mais alta (a outra fica relaxada)
+    D[cn.LeftHand].getWorldPosition(anim2V1);
+    D[cn.RightHand].getWorldPosition(anim2V2);
+    pointHand = anim2V1.y > anim2V2.y ? 0 : 1;
+  }
+  const gp = s.gw > 0.01 ? (s.gkind === "call" ? ANIM2_POSE.open : ANIM2_POSE.point) : null;
+  let dirty = false;
+  for (let h = 0; h < 2; h++) {
+    const fc = s.fc[h];
+    let spT = Math.max(0, -s.curl) * 0.3;
+    for (let i = 0; i < 5; i++) {
+      let t = s.curl;
+      if (ap && aw > 0.01) {
+        const P = pointHand < 0 || pointHand === h ? ap.p : ANIM2_POSE.relax;
+        t = Ts(t, P[i], aw);
+        if (i === 0) spT = Ts(spT, P[5], aw);
+      }
+      if (gp && h === s.garm) {
+        t = Ts(t, gp[i], Eo(s.gw * 1.3));
+        if (i === 0) spT = Ts(spT, gp[5], Eo(s.gw * 1.3));
+      }
+      fc[i] = yi(fc[i], t, 12, dt);
+      if (Math.abs(fc[i] - s.fcA[h][i]) >= 0.004) dirty = true;
+    }
+    s.fsp[h] = yi(s.fsp[h], spT, 12, dt);
+  }
   // os ossos dos dedos não são tocados pelo jogo depois da construção: só reescreve se mudou
-  if (Math.abs(s.curl - (s.curlApplied ?? 99)) < 0.004) return;
-  s.curlApplied = s.curl;
-  const fan = Math.max(0, -s.curl) * 0.3;
+  if (!dirty && Math.abs(s.fsp[0] + s.fsp[1] - (s.fspA ?? 99)) < 0.004) return;
+  s.fcA[0].set(s.fc[0]);
+  s.fcA[1].set(s.fc[1]);
+  s.fspA = s.fsp[0] + s.fsp[1];
   for (const f of s.fing) {
+    const cu = s.fc[f.h][f.fi], fan = s.fsp[f.h];
     f.b.quaternion.copy(f.q0);
-    if (f.w) f.b.quaternion.multiply(anim2FQ.setFromAxisAngle(So, f.sg * s.curl * f.w));
+    if (f.w) f.b.quaternion.multiply(anim2FQ.setFromAxisAngle(So, f.sg * cu * f.w));
     if (f.spread && fan > 0.001) f.b.quaternion.multiply(anim2FQ.setFromAxisAngle(Fc, f.sg * f.spread * fan));
   }
 }
+// poses de mão: curvatura [polegar, indicador, médio, anelar, mínimo] + abertura dos dedos
+const ANIM2_POSE = {
+  relax: [0.12, 0.1, 0.16, 0.22, 0.28, 0],
+  fist: [1.0, 1.45, 1.5, 1.5, 1.45, 0],
+  point: [0.85, -0.75, 1.45, 1.5, 1.45, 0.04],
+  flat: [-0.05, -0.1, -0.08, -0.08, -0.1, 0.06],
+  open: [-0.12, -0.18, -0.16, -0.16, -0.18, 0.28],
+  grip: [0.45, 0.5, 0.56, 0.6, 0.58, 0.06],
+  cup: [0.2, 0.3, 0.32, 0.34, 0.36, 0],
+  loose: [0.08, 0.04, 0.1, 0.16, 0.22, 0.08],
+};
+const ANIM2_HANDS = {
+  celebPunho: { p: ANIM2_POSE.fist }, celebJump: { p: ANIM2_POSE.fist }, celebBracos: { p: ANIM2_POSE.grip },
+  celebPoint: { p: ANIM2_POSE.point, one: 1 }, celebAqui: { p: ANIM2_POSE.point, one: 1 },
+  celebSilencio: { p: ANIM2_POSE.point, one: 1 }, celebOuvido: { p: ANIM2_POSE.cup },
+  celebArms: { p: ANIM2_POSE.flat }, celebRobo: { p: ANIM2_POSE.flat }, celebKneeSlide: { p: ANIM2_POSE.open },
+  celebGiro: { p: ANIM2_POSE.open }, celebSamba: { p: ANIM2_POSE.loose },
+  clap: { p: ANIM2_POSE.flat }, handsOnHead: { p: ANIM2_POSE.flat }, handsOnHips: { p: ANIM2_POSE.flat },
+  appeal: { p: ANIM2_POSE.open }, throwIn: { p: ANIM2_POSE.grip }, gkThrow: { p: ANIM2_POSE.grip },
+  tackle: { p: ANIM2_POSE.open }, slide: { p: ANIM2_POSE.open }, fall: { p: ANIM2_POSE.open }, stumble: { p: ANIM2_POSE.open },
+  gkDiveLow: { p: ANIM2_POSE.open }, gkDiveHigh: { p: ANIM2_POSE.open }, gkJump: { p: ANIM2_POSE.open },
+  kick: { p: ANIM2_POSE.loose }, pass: { p: ANIM2_POSE.loose }, cross: { p: ANIM2_POSE.loose }, chip: { p: ANIM2_POSE.loose },
+  volley: { p: ANIM2_POSE.loose }, header: { p: ANIM2_POSE.loose },
+};
 // Ombro (clavícula) acompanha o braço: protrai quando o braço vai à frente, retrai quando vai atrás
 // e sobe quando o braço levanta (ritmo escápulo-umeral). Delta em relação ao braço caído.
 function anim2Shoulder(r, s) {
@@ -576,4 +796,5 @@ function anim2Final(r, e, dt) {
     anim2Fail(err);
   }
 }
+globalThis.__anim2 = { feed: anim2Feed };
 /* ======================================= fim ARENA Motion 2.0 ============================== */

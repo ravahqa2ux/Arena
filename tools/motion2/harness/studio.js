@@ -432,6 +432,82 @@ scenes.celebs2 = actionScene([
   ['celebSamba', {}], ['celebRobo', {}], ['celebGiro', {}], ['celebOuvido', {}], ['celebSilencio', {}], ['celebBracos', {}],
   ['celebPunho', { span: 1 }], ['sadCrouch', { span: 1 }],
 ], 'field', { yaw: -0.9, dist: 5 });
+// Motion 2.3: inclinação na curva (vista de trás): reta, curva à esquerda, curva à direita
+scenes.curve = `(() => {
+  const rows = [['reta', 0], ['curva esq', 1.1], ['curva dir', -1.1]];
+  S.use('field'); S.beginSheet(8, rows.length, 200, 300);
+  for (const [name, w] of rows) {
+    const v = 6.2;
+    S.reset({ speed: v });
+    const drive = (a, dt) => { a.speed = v; a.accel = 0; a.turn = w; a.heading += w * dt; a.moveDir = a.heading;
+      a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt; a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+    S.advance(60, drive);
+    const cyc = 1 / S.gait(v);
+    for (let k = 0; k < 8; k++) { S.advance(Math.max(1, Math.round(cyc * 60 / 8)), drive); S.snap({ label: k ? '' : name, yaw: Math.PI / 2, dist: 4.4 }); }
+  }
+  return S.endSheet();
+})()`;
+// medida: rolagem do quadril e da cabeça (graus) em curva
+scenes.curveprobe = `(() => {
+  S.use('field'); const res = {};
+  for (const w of [0, 1.1, -1.1]) {
+    const v = 6.2; S.reset({ speed: v });
+    const drive = (a, dt) => { a.speed = v; a.turn = w; a.heading += w * dt; a.moveDir = a.heading;
+      a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt; a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+    S.advance(60, drive); let sum = 0, n = 0; const hp = new __arena.Vec3(), hd = new __arena.Vec3();
+    for (let i = 0; i < 60; i++) { S.advance(1, drive); const a = S.actor.anim; S.actor.model.root.updateWorldMatrix(true, true);
+      S.actor.model.boneWorld('Hips', hp); S.actor.model.boneWorld('Neck', hd);
+      // deslocamento lateral do pescoço em relação ao quadril, + = esquerda do jogador
+      const lx = Math.cos(a.heading), lz = -Math.sin(a.heading);
+      const lat = (hd.x - hp.x) * lx + (hd.z - hp.z) * lz, up = hd.y - hp.y; sum += Math.atan2(lat, up) * 57.3; n++; }
+    res['turn' + w] = +(sum / n).toFixed(1);
+  }
+  return 'TEXT:' + JSON.stringify(res);
+})()`;
+// gestos: pede a bola (braço alto, olha o condutor), aponta/marca, goleiro organizando
+scenes.gestures = `(() => {
+  const rows = [['pede a bola', 'field', 'call', [8, 0], [-6, 9]], ['aponta (marca)', 'field', 'mark', [3, -6], null],
+    ['goleiro organiza', 'gk', 'org', [6, 5], null], ['pede (andando)', 'field', 'call', [8, 0], [-6, -9]]];
+  S.beginSheet(8, rows.length, 200, 300);
+  for (const [name, who, kind, p, l] of rows) {
+    S.use(who); const v = name.includes('andando') ? 1.6 : 0;
+    S.reset({ speed: v });
+    const a = S.actor.anim;
+    const drive = (an, dt, t) => { an.speed = v; if (v) { an.x += Math.sin(an.heading) * v * dt; an.z += Math.cos(an.heading) * v * dt; an.gaitPhase = (an.gaitPhase + S.gait(v) * dt) % 1; }
+      an.gestW = frame < 60 ? 1 : 0; an.gestKind = kind; an.gestPX = an.x + p[0]; an.gestPZ = an.z + p[1];
+      an.gestLX = l ? an.x + l[0] : an.gestPX; an.gestLZ = l ? an.z + l[1] : an.gestPZ; frame++; };
+    let frame = 0;
+    for (let k = 0; k < 8; k++) { S.advance(10, drive); S.snap({ label: k ? '' : name, yaw: -1.0, dist: 4.0 }); }
+  }
+  return S.endSheet();
+})()`;
+// mãos de perto nas poses novas
+scenes.hands2 = `(() => {
+  S.beginSheet(4, 2, 300, 300);
+  const shots = [['punho', 'celebPunho', 0.55, null], ['apontar', null, 0, 'mark'], ['mão aberta (pede)', null, 0, 'call'], ['segurando (lateral)', 'throwIn', 0.25, null],
+    ['aviãozinho', 'celebArms', 0.5, null], ['silêncio', 'celebSilencio', 0.5, null], ['palmas', 'clap', 0.3, null], ['carrinho', 'slide', 0.4, null]];
+  for (const [name, id, frac, kind] of shots) {
+    S.use('field'); S.reset({ speed: 0 });
+    let t = 0;
+    if (id) S.play(id);
+    const drive = (an, dt) => { t += dt; if (id) an.actionT = t; if (kind) { an.gestW = 1; an.gestKind = kind; an.gestPX = an.x + 3; an.gestPZ = an.z + (kind === 'mark' ? 6 : 0); an.gestLX = an.gestPX; an.gestLZ = an.gestPZ; } };
+    S.advance(Math.max(30, Math.round((id ? __arena.clips[id].dur * frac : 1) * 60)), drive);
+    // mão que mais se mexeu: a mais alta
+    const L = new __arena.Vec3(), R = new __arena.Vec3(); S.actor.model.root.updateWorldMatrix(true, true);
+    S.actor.model.boneWorld('LeftHand', L); S.actor.model.boneWorld('RightHand', R);
+    const hp = L.y > R.y ? L : R, a = S.actor.anim;
+    const cam = S.g.camera, ang = a.heading + (hp === L ? 0.9 : -0.9);
+    cam.fov = 18; cam.position.set(hp.x + Math.sin(ang) * 1.5, hp.y + 0.12, hp.z + Math.cos(ang) * 1.5); cam.lookAt(hp.x, hp.y, hp.z); cam.updateProjectionMatrix();
+    S.g.renderer.render(1 / 60, 0, 0);
+    const src = S.g.renderer.canvas, sh = S.sheet, H = src.height, W = src.width, cw = H * 0.9;
+    const dx = (sh.i % sh.cols) * sh.cw, dy = Math.floor(sh.i / sh.cols) * sh.ch;
+    sh.ctx.drawImage(src, (W - cw) / 2, (H - cw) / 2, cw, cw, dx, dy, sh.cw, sh.ch);
+    sh.ctx.font = 'bold 15px sans-serif'; sh.ctx.fillStyle = '#ffeb3b'; sh.ctx.fillText(name, dx + 5, dy + 15);
+    sh.i++;
+    for (const x of ['gestW']) a[x] = 0;
+  }
+  return S.endSheet();
+})()`;
 module.exports = { scenes, actionScene, installStudio };
 
 if (require.main === module) {

@@ -50,7 +50,7 @@ def main():
         # 6. fase do jogo + fôlego
         (
             "for(const m of this.actors)m.model.update(m.anim,t)",
-            "for(const m of this.actors)anim2Feed(m,a),m.model.update(m.anim,t)",
+            "for(const m of this.actors)anim2Feed(m,a,this),m.model.update(m.anim,t)",
         ),
     ]
     if clips:

@@ -1,4 +1,4 @@
-# ARENA Motion 2.2 + Gameplay 2.1
+# ARENA Motion 2.3 + Gameplay 2.1
 
 Fonte das camadas injetadas em `ARENA-Jogar.html`.
 Para reaplicar num build novo do jogo (sem o patch):
@@ -12,6 +12,7 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 | `core.js` | camada procedural (corpo, olhar, inertialization, contato com o chão; Motion 2.1: contrapposto, braços relaxados, punho com atraso — desligável com `__anim2cfg.noWrist`) |
 | `clips.js` | comemorações novas + ações redesenhadas (`gkCatch`, `gkCatchLow`, `tackle`, `chestControl`, `pass`) com os mesmos `dur`/`contact` do original |
 | `core.js` (Motion 2.2) | dedos animados (`anim2Fingers`: mão fechada correndo, aberta no goleiro, agarra no `gkCatch`/segurando a bola), clavícula acompanha o braço (`anim2Shoulder`), toque de condução por tipo (`carry`/`turn`/`stop`) com olhar na bola |
+| `core.js` (Motion 2.3) | poses de mão por dedo (punho, apontar, espalmada, segurando) por ação; linguagem corporal (`anim2Social`: pede a bola, goleiro organiza, zagueiro aponta a marcação, lamento após chute para fora; só visual); inclinação do corpo nas curvas |
 | `skills.js`, `patches_skills.py` | dribles novos `pedaladaDupla`, `paraArranca`, `corteSeco`: trilhas, catálogo, gestos e listas da IA |
 | `celeb.js`, `patches_celeb.py` | sistema de comemorações |
 | `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores e regras novas em `globalThis.__gp2` |
@@ -33,6 +34,6 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 | `gkAngle` | 0 | goleiro na bissetriz do ângulo. Experimental: reduz o ângulo livre no modelo geométrico, mas sofreu mais gols nos testes de finalização |
 
 Com valor 1 nos multiplicadores e 0 em `trapErr`/`shieldBlock`/`touchAmp=1`, o jogo volta ao original.
-Depuração da animação: `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1, noWrist: 1, noShoulder: 1, noFingers: 1, noTouch: 1 }`; `curl` força o fechamento dos dedos e `shGain` escala o ombro.
+Depuração da animação: `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1, noWrist: 1, noShoulder: 1, noFingers: 1, noTouch: 1, noGesture: 1, noSocial: 1 }`; `bank` escala a inclinação nas curvas (0 desliga); `curl` força o fechamento dos dedos e `shGain` escala o ombro.
 
-Testes novos em `harness/`: `skilltest.js <html> [tentativas] [dribles]` (melhor driblador × melhor marcador, % de posse mantida) e `devtest.js <html>` (controle padrão emulado e toques reais via CDP em viewport de celular).
+Testes novos em `harness/`: `skilltest.js <html> [tentativas] [dribles]` (melhor driblador × melhor marcador, % de posse mantida) e `devtest.js <html>` (controle padrão emulado e toques reais via CDP em viewport de celular) e `socialtest.js <html> [s] [partidas] [cfg]` (gestos em partida IA × IA com o animador rodando).
