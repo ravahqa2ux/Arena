@@ -9,7 +9,7 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 
 | Arquivo | Conteúdo |
 |---|---|
-| `core.js` | camada procedural (corpo, olhar, inertialization, contato com o chão) |
+| `core.js` | camada procedural (corpo, olhar, inertialization, contato com o chão; Motion 2.1: contrapposto, braços relaxados, punho com atraso — desligável com `__anim2cfg.noWrist`) |
 | `clips.js` | comemorações novas + ações redesenhadas (`gkCatch`, `gkCatchLow`, `tackle`, `chestControl`, `pass`) com os mesmos `dur`/`contact` do original |
 | `celeb.js`, `patches_celeb.py` | sistema de comemorações |
 | `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores e regras novas em `globalThis.__gp2` |

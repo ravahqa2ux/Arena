@@ -206,6 +206,33 @@ scenes.touch = `(() => {
   }
   return S.endSheet();
 })()`;
+scenes.front = `(() => {
+  const rows = [['parado',0,-1.5708],['andar',1.5,-1.5708],['trote',3.4,-1.5708],['corrida',5.6,-1.5708],['corrida 3/4',5.6,-0.8]];
+  S.use('field'); S.beginSheet(8, rows.length, 200, 300);
+  for (const [name, v, yaw] of rows) {
+    S.reset({ speed: v });
+    const drive = (a, dt) => { a.speed = v; a.accel = 0; a.turn = 0; a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt;
+      a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+    S.advance(60, drive);
+    const cyc = v > 0 ? 1 / S.gait(v) : 2.0;
+    for (let k = 0; k < 8; k++) { S.advance(Math.max(1, Math.round(cyc * 60 / 8)), drive); S.snap({ label: k === 0 ? name : '', yaw, dist: 3.8 }); }
+  }
+  return S.endSheet();
+})()`;
+// amplitude do atraso do punho (graus) em cada velocidade
+scenes.wrist = `(() => {
+  S.use('field'); const res = {};
+  for (const v of [0, 1.5, 3.4, 5.6, 7]) {
+    S.reset({ speed: v });
+    const drive = (a, dt) => { a.speed = v; a.accel = 0; a.turn = 0; a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt;
+      a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+    S.advance(60, drive);
+    let mx = 0;
+    for (let i = 0; i < 90; i++) { S.advance(1, drive); const w = S.actor.model.anim2.wr; if (w) for (let k = 0; k < 2; k++) mx = Math.max(mx, Math.hypot(w.o[k*3], w.o[k*3+1], w.o[k*3+2])); }
+    res['v' + v] = +(mx * 57.3).toFixed(1);
+  }
+  return 'TEXT:' + JSON.stringify(res);
+})()`;
 scenes.contact2 = actionScene([
   ['tackle', {}], ['tackle', { view: { yaw: -Math.PI / 2 } }], ['chestControl', {}], ['chestControl', { view: { yaw: -Math.PI / 2 } }],
 ], 'field', { yaw: -0.2, dist: 4.4 });

@@ -50,6 +50,7 @@ function anim2Init(r, o) {
       breathPh: rnd() * 6.28, ex: 0, fat: 0, stillT: 0,
       aLf: 0, aTf: 0, sp: 0, spv: 0, sr: 0, srv: 0, sa: 0, sav: 0,
       drive: 0, brake: 0, ready: 0, gkB: 0, tired: 0,
+      cp: 0, cpSide: rnd() < 0.5 ? -1 : 1, cpT: 1 + rnd() * 4, cpAmt: 0.75 + rnd() * 0.5,
       gYaw: 0, gPitch: 0, gT: 0.5 + rnd() * 2,
       scanT: 0.8 + rnd() * 1.5, scanUntil: -1, scanDir: 1, scanW: 0, gz: 0,
       lastX: 1e9, lastZ: 1e9,
@@ -145,6 +146,17 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     const restWant = calm * stand * (1 - stW) * qt(0.4, 0.75, puff) * qt(1, 1.8, s.stillT);
     s.tired = yi(s.tired, restWant, restWant > s.tired ? 2 : 5, dt);
     const ready = s.ready, gkB = s.gkB, tired = s.tired, knees = s.restPose === 0;
+    // contrapposto: parado, o peso fica numa perna só (quadril desloca, bacia inclina, joelho livre
+    // destrava) e troca de perna de tempos em tempos, devagar — nada de "soldado em sentido"
+    s.cpT -= dt;
+    if (s.cpT <= 0) {
+      const x = Math.sin(c * 12.9898 + s.ph[1]) * 43758.5453, u = x - Math.floor(x);
+      s.cpSide = u < 0.75 ? -s.cpSide : s.cpSide;
+      s.cpT = 3.5 + u * 6;
+    }
+    const cpW = stand * (1 - stW) * (1 - tired) * (1 - 0.65 * ready) * (1 - gkB) * s.cpAmt;
+    s.cp = yi(s.cp, s.cpSide * cpW, 1.5, dt);
+    const cp = s.cp, cpA = Math.abs(cp);
 
     // pés antes das mudanças (para travá-los no chão depois)
     const lockW = C && C.noLock ? 0 : stand;
@@ -161,10 +173,11 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     const tk = knees ? tired : 0;
     hp.y -= ready * 4 + tk * 14 + tired * (1 - knees) * 1.5 + bounce + s.drive * 4 + s.brake * 4.5 + s.fat * mv * 1.5;
     hp.z -= tk * 10;
-    hp.x += sway * 1.4 * shiftW + gkB * Math.sin(c * 1.4 + s.ph[2]) * 1.6;
+    hp.x += sway * 1.4 * shiftW + gkB * Math.sin(c * 1.4 + s.ph[2]) * 1.6 + cp * 3.4;
+    hp.y -= cpA * 1.1;
     const hipPitch = (s.drive * 8 - s.brake * 7 + tk * 26) * Ms;
     if (Math.abs(hipPitch) > 1e-5) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, hipPitch));
-    const hipRoll = sway * 1.2 * Ms * shiftW;
+    const hipRoll = (sway * 1.2 * shiftW + cp * 4.2) * Ms;
     if (Math.abs(hipRoll) > 1e-6) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, hipRoll));
 
     // ---------------- coluna
@@ -186,16 +199,21 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     // ---------------- pescoço (porte da cabeça)
     const nk = (s.headC * free - ready * 4 - s.drive * 3 + s.fat * mv * 4 - tk * 26 + (tired - tk) * 4) * Ms;
     D[B.neck].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, nk));
+    if (cpA > 0.01) D[B.neck].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, cp * 2.2 * Ms));
 
     // ---------------- braços (prontidão, estilo, inércia)
-    const armFwd = -ready * 6 * Ms - s.sa;
-    const armOut = (ready * 9 + s.armOut * free * (0.4 + 0.6 * g) + gkB * 4) * Ms;
+    const idleArm = stand * free * (1 - stW) * (1 - tired);
+    const walkW = qt(0.5, 1.2, o) * (1 - qt(2.4, 3.6, o)) * mv;
+    const armFwd = -ready * 6 * Ms - idleArm * 3 * Ms - s.sa;
+    // na corrida, braços um pouco mais abertos: as mãos não cruzam a linha do peito
+    const armOut = (ready * 9 + s.armOut * free * (0.4 + 0.6 * g) + gkB * 4 + qt(1.6, 4.2, o) * 10 * mv) * Ms;
     for (let k = 0; k < 2; k++) {
       const sg = k ? -1 : 1;
       const arm = D[k ? B.armR : B.armL], fa = D[k ? B.faR : B.faL];
       arm.quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, armFwd));
       arm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, sg * armOut));
-      const flex = (ready * 14 + s.elbow * g * free - s.fat * mv * 12 + gkB * 6 * Math.sin(c * 4.2 + sg)) * Ms;
+      const flex = (ready * 14 + s.elbow * g * free - s.fat * mv * 12 + gkB * 6 * Math.sin(c * 4.2 + sg) +
+        idleArm * (10 + sg * cp * 5) + walkW * 16) * Ms;
       fa.quaternion.multiply(anim2Q1.setFromAxisAngle(Fc, -sg * flex));
     }
 
@@ -332,6 +350,51 @@ function anim2Ground(r, e) {
     }
   }
 }
+// Movimento secundário: a mão "atrasa" em relação ao antebraço (punho solto, não um bloco rígido).
+// Mola amortecida por mão, guiada pela velocidade angular do antebraço no espaço do quadril.
+const anim2ArmChain = [
+  [cn.Hips, cn.Spine, cn.Spine1, cn.Spine2, cn.LeftShoulder, cn.LeftArm, cn.LeftForeArm],
+  [cn.Hips, cn.Spine, cn.Spine1, cn.Spine2, cn.RightShoulder, cn.RightArm, cn.RightForeArm],
+];
+const anim2WrQ = new Un(), anim2WrP = new Un();
+function anim2Wrist(r, s, dt, fw) {
+  const D = r.bones, W = globalThis.__anim2cfg?.wrist ?? 1;
+  if (!s.wr) s.wr = { q: new Float32Array(8), o: new Float32Array(6), v: new Float32Array(6), n: 0 };
+  const wr = s.wr;
+  if (!s.hasPrev || dt > 0.1) wr.n = 0;
+  const iv = 1 / dt, w0 = 17, zd = 2 * 0.72 * w0, tau = 0.04 * W * fw * fw, lim = 0.22;
+  const sub = Math.min(6, Math.ceil(dt * 120)), h = dt / sub;
+  for (let k = 0; k < 2; k++) {
+    const ch = anim2ArmChain[k];
+    anim2WrQ.identity();
+    for (let i = 0; i < ch.length; i++) anim2WrQ.multiply(D[ch[i]].quaternion);
+    const o3 = k * 3, hand = D[k ? cn.RightHand : cn.LeftHand];
+    if (wr.n >= 1) {
+      anim2WrP.fromArray(wr.q, k * 4).invert().multiply(anim2WrQ);
+      anim2Log(anim2WrP, anim2W1, 0);
+      // remove a torção em torno do eixo do osso (só flexão/desvio do punho)
+      anim2V1.copy(hand.position).normalize();
+      const ax = anim2V1.x, ay = anim2V1.y, az = anim2V1.z;
+      let wx = anim2W1[0] * iv, wy = anim2W1[1] * iv, wz = anim2W1[2] * iv;
+      const d = wx * ax + wy * ay + wz * az;
+      wx -= d * ax; wy -= d * ay; wz -= d * az;
+      const tg = [Ne(-wx * tau, -lim, lim), Ne(-wy * tau, -lim, lim), Ne(-wz * tau, -lim, lim)];
+      for (let j = 0; j < sub; j++)
+        for (let i = 0; i < 3; i++) {
+          wr.v[o3 + i] += (w0 * w0 * (tg[i] - wr.o[o3 + i]) - zd * wr.v[o3 + i]) * h;
+          wr.o[o3 + i] += wr.v[o3 + i] * h;
+        }
+      const ox = Ne(wr.o[o3], -lim, lim), oy = Ne(wr.o[o3 + 1], -lim, lim), oz = Ne(wr.o[o3 + 2], -lim, lim);
+      // vetor de rotação está no frame do antebraço: leva para o frame local da mão
+      anim2V2.set(ox, oy, oz).applyQuaternion(anim2Q2.copy(hand.quaternion).invert());
+      hand.quaternion.multiply(anim2Exp(anim2V2.x, anim2V2.y, anim2V2.z, anim2Q1));
+    } else {
+      for (let i = 0; i < 3; i++) wr.o[o3 + i] = wr.v[o3 + i] = 0;
+    }
+    anim2WrQ.toArray(wr.q, k * 4);
+  }
+  wr.n++;
+}
 function anim2Final(r, e, dt) {
   const s = r.anim2, C = globalThis.__anim2cfg;
   if (anim2Off || !s || !(dt > 0) || (C && C.noFinal)) return;
@@ -401,6 +464,7 @@ function anim2Final(r, e, dt) {
       hp.z += (s.offH[2] + (s.offHV[2] + y * s.offH[2]) * t) * ex;
       if (s.legW > 0.01) anim2Ground(r, e);
     }
+    if (!(C && C.noWrist)) anim2Wrist(r, s, dt, 1 - a);
     s.prev2.set(s.prev);
     for (let k = 0; k < on; k++) D[k].quaternion.toArray(s.prev, k * 4);
     s.prevH2.set(s.prevH);
