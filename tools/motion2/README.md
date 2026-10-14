@@ -1,4 +1,4 @@
-# ARENA Motion 2.0 + Gameplay 2.0
+# ARENA Motion 2.2 + Gameplay 2.1
 
 Fonte das camadas injetadas em `ARENA-Jogar.html`.
 Para reaplicar num build novo do jogo (sem o patch):
@@ -11,6 +11,8 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 |---|---|
 | `core.js` | camada procedural (corpo, olhar, inertialization, contato com o chão; Motion 2.1: contrapposto, braços relaxados, punho com atraso — desligável com `__anim2cfg.noWrist`) |
 | `clips.js` | comemorações novas + ações redesenhadas (`gkCatch`, `gkCatchLow`, `tackle`, `chestControl`, `pass`) com os mesmos `dur`/`contact` do original |
+| `core.js` (Motion 2.2) | dedos animados (`anim2Fingers`: mão fechada correndo, aberta no goleiro, agarra no `gkCatch`/segurando a bola), clavícula acompanha o braço (`anim2Shoulder`), toque de condução por tipo (`carry`/`turn`/`stop`) com olhar na bola |
+| `skills.js`, `patches_skills.py` | dribles novos `pedaladaDupla`, `paraArranca`, `corteSeco`: trilhas, catálogo, gestos e listas da IA |
 | `celeb.js`, `patches_celeb.py` | sistema de comemorações |
 | `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores e regras novas em `globalThis.__gp2` |
 | `harness/` | testes com Playwright: `gameplay.js` (IA × IA com seed, `SEED=n`), `shottest.js` (finalização controlada), `gkangle.py` (geometria do goleiro), `studio.js` (folhas de pose) |
@@ -31,4 +33,6 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 | `gkAngle` | 0 | goleiro na bissetriz do ângulo. Experimental: reduz o ângulo livre no modelo geométrico, mas sofreu mais gols nos testes de finalização |
 
 Com valor 1 nos multiplicadores e 0 em `trapErr`/`shieldBlock`/`touchAmp=1`, o jogo volta ao original.
-Depuração da animação: `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1 }`.
+Depuração da animação: `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1, noWrist: 1, noShoulder: 1, noFingers: 1, noTouch: 1 }`; `curl` força o fechamento dos dedos e `shGain` escala o ombro.
+
+Testes novos em `harness/`: `skilltest.js <html> [tentativas] [dribles]` (melhor driblador × melhor marcador, % de posse mantida) e `devtest.js <html>` (controle padrão emulado e toques reais via CDP em viewport de celular).

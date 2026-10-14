@@ -196,3 +196,63 @@ Object.assign(gf, {
     le(0.62, { Hips: [0, 0, 0], Spine: [10, 0, 0], ...Qn(0.06), ...ha }, [0, -0.06, 0]),
   ]);
 })();
+/* ---------------- ARENA Motion 2.2: dribles novos (pose; trilhas de bola/corpo em skills.js) ----------------
+ * Convenções (iguais às do jogo): UpLeg X<0 = coxa à frente, Leg X>0 = joelho dobra, Foot X<0 = ponta para cima,
+ * Hips/Spine Y>0 = gira para a esquerda, Arm X<0 = braço à frente. Quadril [x(esq), y, z(frente)] em metros.
+ * Todos usam side: o espelhamento do animador gera a versão para o outro lado. */
+Object.assign(gf, {
+  // Pedalada dupla: a perna esquerda passa por cima da bola, depois a direita, e sai explosivo para a esquerda
+  pedaladaDupla: arenaClip(0.86, [
+    le(0, { ...H_ }, [0, -0.03, 0]),
+    le(0.08, { Hips: [0, -4, -3], Spine: [10, -2, 2], LeftUpLeg: [-24, -4, -6], LeftLeg: [46, 0, 0], LeftFoot: [14, 0, 0],
+      RightUpLeg: [-8, 0, -6], RightLeg: [26, 0, 0], RightFoot: [-6, 0, 0], ...aWideR }, [-0.02, -0.04, 0]),
+    le(0.16, { Hips: [0, -6, 0], Spine: [8, -4, 0], LeftUpLeg: [-44, -8, -10], LeftLeg: [38, 0, 0], LeftFoot: [10, 0, 0],
+      RightUpLeg: [-6, 0, -4], RightLeg: [26, 0, 0] }, [-0.02, -0.035, 0.01]),
+    le(0.24, { Hips: [0, 4, -4], Spine: [8, 4, -4], LeftUpLeg: [-46, 4, 8], LeftLeg: [34, 0, 0], LeftFoot: [8, 0, 0] }, [0.02, -0.04, 0.02]),
+    le(0.33, { Hips: [0, 10, -7], Spine: [12, 8, -9], Neck: [6, -5, 0], LeftUpLeg: [-26, 6, 16], LeftLeg: [30, 0, 0], LeftFoot: [-4, 0, 0],
+      RightUpLeg: [-4, 0, -10], RightLeg: [30, 0, 0], RightFoot: [-6, 0, 0], ...aWideL }, [0.06, -0.07, 0.02]),
+    // transferência: o peso vai para a esquerda e a direita já começa a levantar
+    le(0.41, { Hips: [0, 4, 3], Spine: [10, 2, -2], Neck: [2, 0, 0], LeftUpLeg: [-8, 0, 8], LeftLeg: [28, 0, 0], LeftFoot: [-6, 0, 0],
+      RightUpLeg: [-24, 4, 6], RightLeg: [46, 0, 0], RightFoot: [14, 0, 0], ...aWideL }, [0.03, -0.05, 0.02]),
+    le(0.49, { Hips: [0, 6, 0], Spine: [8, 4, 0], RightUpLeg: [-44, 8, 10], RightLeg: [38, 0, 0], RightFoot: [10, 0, 0],
+      LeftUpLeg: [-6, 0, 4], LeftLeg: [26, 0, 0] }, [0.02, -0.035, 0.03]),
+    le(0.57, { Hips: [0, -4, 4], Spine: [8, -4, 4], RightUpLeg: [-46, -4, -8], RightLeg: [34, 0, 0], RightFoot: [8, 0, 0] }, [-0.02, -0.04, 0.04]),
+    le(0.66, { Hips: [0, -10, 7], Spine: [12, -8, 9], Neck: [6, 5, 0], RightUpLeg: [-26, -6, -16], RightLeg: [30, 0, 0], RightFoot: [-4, 0, 0],
+      LeftUpLeg: [-4, 0, 10], LeftLeg: [30, 0, 0], LeftFoot: [-6, 0, 0], ...aWideR }, [-0.06, -0.08, 0.04]),
+    // arrancada para a esquerda: empurra com a direita, a esquerda leva a bola com a parte de fora
+    le(0.76, { Hips: [0, 12, -6], Spine: [16, 10, -8], Neck: [-4, -6, 0], LeftUpLeg: [-36, 6, 10], LeftLeg: [42, 0, 0], LeftFoot: [6, 0, 0],
+      RightUpLeg: [6, 0, -10], RightLeg: [26, 0, 0], RightFoot: [6, 0, 0], LeftArm: [26, 0, -58], RightArm: [-34, 0, 54],
+      LeftForeArm: [0, -40, 0], RightForeArm: [0, 44, 0] }, [0.04, -0.08, 0.04]),
+    le(0.86, { ...H_ }, [0, -0.03, 0]),
+  ]),
+  // Para e arranca: pisa na bola com a sola em velocidade, congela o marcador e explode para a frente
+  paraArranca: arenaClip(0.74, [
+    le(0, { ...H_, Spine: [12, 0, 0] }, [0, -0.04, 0]),
+    le(0.1, { Hips: [-6, 0, 0], Spine: [0, 0, 0], Neck: [-4, 0, 0], RightUpLeg: [-36, 0, -4], RightLeg: [30, 0, 0], RightFoot: [-24, 0, 0],
+      LeftUpLeg: [8, 0, 4], LeftLeg: [42, 0, 0], LeftFoot: [4, 0, 0], ...aBal }, [0, -0.07, -0.04]),
+    le(0.24, { Hips: [-2, 0, 0], Spine: [3, 0, 0], Neck: [-6, 0, 0], RightUpLeg: [-30, 0, -4], RightLeg: [34, 0, 0], RightFoot: [-18, 0, 0],
+      LeftUpLeg: [2, 0, 4], LeftLeg: [36, 0, 0], LeftFoot: [-2, 0, 0], LeftArm: [-16, 0, -56], RightArm: [-16, 0, 56] }, [0, -0.06, -0.03]),
+    // pausa curta: ombros caem, o peso vai para a frente (o marcador "compra" a parada)
+    le(0.36, { Hips: [2, 0, 0], Spine: [10, 0, 0], Neck: [-8, 0, 0], RightUpLeg: [-28, 0, -4], RightLeg: [38, 0, 0], RightFoot: [-14, 0, 0],
+      LeftUpLeg: [-2, 0, 4], LeftLeg: [44, 0, 0], LeftFoot: [-6, 0, 0] }, [0, -0.085, -0.01]),
+    le(0.46, { Hips: [4, 0, 0], Spine: [18, 0, 0], Neck: [-10, 0, 0], RightUpLeg: [-42, 0, -4], RightLeg: [26, 0, 0], RightFoot: [8, 0, 0],
+      LeftUpLeg: [10, 0, 4], LeftLeg: [40, 0, 0], LeftFoot: [10, 0, 0], ...aBal }, [0, -0.08, 0.03]),
+    le(0.58, { Hips: [6, 0, 0], Spine: [22, 0, 0], Neck: [-12, 0, 0], LeftUpLeg: [-48, 0, 4], LeftLeg: [62, 0, 0], LeftFoot: [-6, 0, 0],
+      RightUpLeg: [14, 0, -4], RightLeg: [30, 0, 0], RightFoot: [14, 0, 0], LeftArm: [30, 0, -62], RightArm: [-38, 0, 56],
+      LeftForeArm: [0, -44, 0], RightForeArm: [0, 48, 0] }, [0, -0.07, 0.06]),
+    le(0.74, { ...H_, Spine: [14, 0, 0] }, [0, -0.04, 0]),
+  ]),
+  // Corte seco: em velocidade, freia na perna esquerda e corta a bola ~80° para a esquerda com a parte de dentro do pé direito
+  corteSeco: arenaClip(0.54, [
+    le(0, { ...H_, Spine: [12, 0, 0] }, [0, -0.04, 0]),
+    le(0.1, { Hips: [-4, -6, 0], Spine: [6, -4, 0], LeftUpLeg: [-22, 0, 6], LeftLeg: [40, 0, 0], LeftFoot: [-8, 0, 0],
+      RightUpLeg: [-28, -12, -4], RightLeg: [32, 0, 0], RightFoot: [-4, 0, 0], ...aWideR }, [0, -0.075, -0.02]),
+    le(0.2, { Hips: [0, 10, -2], Spine: [10, 14, -6], Neck: [4, -8, 0], LeftUpLeg: [-14, 0, 10], LeftLeg: [46, 0, 0], LeftFoot: [-8, 0, 0],
+      RightUpLeg: [-36, -26, 10], RightLeg: [34, 0, 0], RightFoot: [-8, 0, 0], ...aWideL }, [0.02, -0.095, 0]),
+    le(0.3, { Hips: [0, 24, -6], Spine: [12, 18, -10], Neck: [6, -10, 0], LeftUpLeg: [-6, 0, 12], LeftLeg: [48, 0, 0], LeftFoot: [-6, 0, 0],
+      RightUpLeg: [-24, -12, 12], RightLeg: [32, 0, 0], RightFoot: [-2, 0, 0], LeftArm: [-30, 0, -36], RightArm: [-6, 0, 50] }, [0.04, -0.1, 0.01]),
+    le(0.41, { Hips: [2, 12, -4], Spine: [18, 8, -6], Neck: [-6, -4, 0], RightUpLeg: [-42, 0, -4], RightLeg: [58, 0, 0], RightFoot: [-4, 0, 0],
+      LeftUpLeg: [12, 0, 4], LeftLeg: [32, 0, 0], LeftFoot: [10, 0, 0], LeftArm: [24, 0, -58], RightArm: [-34, 0, 54] }, [0.03, -0.075, 0.03]),
+    le(0.54, { ...H_, Spine: [12, 0, 0] }, [0, -0.04, 0]),
+  ]),
+});

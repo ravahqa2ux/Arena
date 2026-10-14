@@ -55,10 +55,10 @@ def main():
     ]
     if clips:
         patches.append(("const bh={gk:", clips + "\nconst bh={gk:"))
-    for extra_name in ("patches_celeb.py", "patches_gameplay.py"):
+    for extra_name in ("patches_celeb.py", "patches_gameplay.py", "patches_skills.py"):
         extra = os.path.join(HERE, extra_name)
         if os.path.exists(extra):
-            ns = {}
+            ns = {"__file__": extra, "HERE": HERE}
             exec(open(extra, encoding="utf-8").read(), ns)
             patches += ns["PATCHES"]
 

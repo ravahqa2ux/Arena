@@ -66,6 +66,21 @@ function anim2Init(r, o) {
       headUp0: new q(0, 1, 0),
     };
     r.anim2 = s;
+    // dedos (Motion 2.2): o rig tem ossos de dedo, mas o jogo só aplica uma pose fixa no início.
+    // Guardamos essa pose como base e curvamos por estado (relaxado, corrida, goleiro pronto, agarrando).
+    s.fing = [];
+    s.curl = 0;
+    s.curlOff = (rnd() - 0.5) * 0.16;
+    for (const b of r.body.skeleton.bones) {
+      const m = /(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)(\d)/.exec(b.name);
+      if (!m || +m[3] > 3) continue;
+      const seg = +m[3], thumb = m[2] === "Thumb";
+      s.fing.push({
+        b, q0: b.quaternion.clone(), sg: m[1] === "Left" ? -1 : 1,
+        w: thumb ? (seg === 1 ? 0 : 0.35) : [0, 0.85, 1, 0.7][seg],
+        spread: thumb ? 0 : { Index: 1, Middle: 0.3, Ring: -0.4, Pinky: -1 }[m[2]],
+      });
+    }
     // direção "cima" da cabeça na pose de ligação (referência de cabeça nivelada)
     r.root.updateWorldMatrix(true, true);
     r.bones[anim2B.head].getWorldQuaternion(anim2Q1);
@@ -217,6 +232,39 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
       fa.quaternion.multiply(anim2Q1.setFromAxisAngle(Fc, -sg * flex));
     }
 
+    // ---------------- toque de condução por tipo (Motion 2.2): o jogo diz se o toque é condução,
+    // mudança de direção ou parada; cada um ganha uma mecânica de pé, quadril, tronco e braços própria
+    const tw = e.touchT < 0.32 && !(C && C.noTouch) ? Math.sin((e.touchT / 0.32) * Math.PI) * free * Eo((e.dribble ?? 0) * 1.5) : 0;
+    if (tw > 0.01) {
+      const kind = e.touchKind || "carry", fs = e.touchFoot >= 0 ? 1 : -1; // +1 = pé direito
+      const R = fs > 0, ul = D[R ? B.ulR : B.ulL], lg = D[R ? B.lgR : B.lgL], ft = D[R ? B.ftR : B.ftL];
+      const oArm = D[R ? B.armL : B.armR], sArm = D[R ? B.armR : B.armL];
+      if (kind === "stop") {
+        // sola na bola: coxa à frente, ponta do pé para cima, tronco para trás, braços abrem
+        ul.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, -12 * tw * Ms));
+        lg.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, 6 * tw * Ms));
+        ft.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, -20 * tw * Ms));
+        D[B.sp].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, -6 * tw * Ms));
+        oArm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, (R ? 1 : -1) * 12 * tw * Ms));
+        sArm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, (R ? -1 : 1) * 10 * tw * Ms));
+      } else if (kind === "turn") {
+        // mudança de direção: pé gira (parte de dentro/fora), quadril e tronco antecipam a curva
+        const ts = Math.sign(e.turn || 0) || (fs > 0 ? 1 : -1);
+        ft.quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, ts * 22 * tw * Ms));
+        ul.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, -8 * tw * Ms));
+        D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, ts * 8 * tw * Ms));
+        D[B.sp1].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, ts * 6 * tw * Ms));
+        D[B.sp].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, -ts * 4 * tw * Ms));
+        oArm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, (R ? 1 : -1) * 10 * tw * Ms));
+      } else {
+        // condução: empurra com o peito do pé, joelho sobe um pouco, braço oposto equilibra, ombros giram
+        ul.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, -7 * tw * Ms));
+        ft.quaternion.multiply(anim2Q1.setFromAxisAngle(Ch, 8 * tw * Ms));
+        D[B.sp2].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, fs * 5 * tw * Ms));
+        oArm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, (R ? 1 : -1) * 7 * tw * Ms));
+      }
+    }
+
     // ---------------- trava dos pés (IK) para as mudanças de quadril não deslizarem os pés
     if (lockW > 0.02)
       for (let k = 0; k < 2; k++) {
@@ -290,6 +338,9 @@ function anim2Gaze(r, e, V, Z, a, g, o, dt) {
     }
     dv += s.gYaw * idle;
     dz += s.gPitch * idle;
+    // olhada rápida para a bola em cada toque de condução (cabeça desce e volta a subir)
+    const gl = (1 - qt(0.04, 0.42, e.touchT)) * Eo((e.dribble ?? 0) * 1.5) * free * (1 - (s.scanW || 0));
+    dz += gl * 0.2;
     const carry = Eo((e.dribble ?? 0) * 1.4 - 0.3) * qt(0.8, 2, o) * free;
     s.scanT -= dt * carry;
     if (s.scanT <= 0) {
@@ -395,6 +446,51 @@ function anim2Wrist(r, s, dt, fw) {
   }
   wr.n++;
 }
+// Dedos: curvatura por estado, suavizada (mão relaxada parada, punho solto correndo, mão aberta do
+// goleiro pronto, fechando na bola quando agarra).
+const anim2FQ = new Un();
+function anim2Fingers(r, s, e, dt, a) {
+  if (!s.fing || !s.fing.length) return;
+  const C = globalThis.__anim2cfg, act = e.action || "";
+  const g = r.moveBlend, spr = r.sprintW, gkA = act.startsWith("gk") && act !== "gkThrow";
+  const gkOpen = Math.max(s.gkB, r.stanceW.gk * 0.7, gkA ? Math.max(r.cur.w, 0.5) : 0);
+  let want = 0.08 + s.curlOff + g * (1 - a) * (0.22 + 0.22 * spr) - s.tired * 0.12;
+  want = Ts(want, -0.32, gkOpen);
+  // agarrou: fecha as mãos na bola (depois do contato da defesa, ou segurando a bola)
+  const grip = act === "gkCatch" || act === "gkCatchLow" ? qt(0, 0.08, e.actionT - ca(act)) * r.cur.w : 0;
+  want = Ts(want, 0.4, Math.max(Eo(e.hold ?? 0), grip));
+  if (C && C.curl !== undefined) want = C.curl;
+  s.curl = yi(s.curl, want, 9, dt);
+  // os ossos dos dedos não são tocados pelo jogo depois da construção: só reescreve se mudou
+  if (Math.abs(s.curl - (s.curlApplied ?? 99)) < 0.004) return;
+  s.curlApplied = s.curl;
+  const fan = Math.max(0, -s.curl) * 0.3;
+  for (const f of s.fing) {
+    f.b.quaternion.copy(f.q0);
+    if (f.w) f.b.quaternion.multiply(anim2FQ.setFromAxisAngle(So, f.sg * s.curl * f.w));
+    if (f.spread && fan > 0.001) f.b.quaternion.multiply(anim2FQ.setFromAxisAngle(Fc, f.sg * f.spread * fan));
+  }
+}
+// Ombro (clavícula) acompanha o braço: protrai quando o braço vai à frente, retrai quando vai atrás
+// e sobe quando o braço levanta (ritmo escápulo-umeral). Delta em relação ao braço caído.
+function anim2Shoulder(r, s) {
+  const D = r.bones, C = globalThis.__anim2cfg, G = C?.shGain ?? 1;
+  if (!G) return;
+  for (let k = 0; k < 2; k++) {
+    const sg = k ? -1 : 1; // eixo do osso: +X à esquerda, -X à direita
+    const sh = D[k ? cn.RightShoulder : cn.LeftShoulder], arm = D[k ? cn.RightArm : cn.LeftArm];
+    anim2V1.set(sg, 0, 0).applyQuaternion(arm.quaternion).applyQuaternion(sh.quaternion);
+    const fwd = Ne(anim2V1.z, -0.8, 0.9), up = Ne(anim2V1.y + 0.9, 0, 1.9);
+    const pro = (fwd > 0 ? 0.2 : 0.14) * fwd * G, ele = 0.4 * (up / 1.9) * (up / 1.9) * G;
+    // proteção: Y gira o osso para frente/trás; Z levanta (sinais espelhados entre os lados)
+    anim2Q3.copy(sh.quaternion);
+    sh.quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, -sg * pro));
+    sh.quaternion.premultiply(anim2Q1.setFromAxisAngle(So, sg * ele));
+    // o braço mantém (quase toda) a direção: só a articulação do ombro anda (sobe / vai à frente)
+    anim2Q2.copy(sh.quaternion).invert().multiply(anim2Q3).multiply(arm.quaternion);
+    arm.quaternion.slerp(anim2Q2, 0.9);
+  }
+}
 function anim2Final(r, e, dt) {
   const s = r.anim2, C = globalThis.__anim2cfg;
   if (anim2Off || !s || !(dt > 0) || (C && C.noFinal)) return;
@@ -464,7 +560,9 @@ function anim2Final(r, e, dt) {
       hp.z += (s.offH[2] + (s.offHV[2] + y * s.offH[2]) * t) * ex;
       if (s.legW > 0.01) anim2Ground(r, e);
     }
+    if (!(C && C.noShoulder)) anim2Shoulder(r, s);
     if (!(C && C.noWrist)) anim2Wrist(r, s, dt, 1 - a);
+    if (!(C && C.noFingers)) anim2Fingers(r, s, e, dt, a);
     s.prev2.set(s.prev);
     for (let k = 0; k < on; k++) D[k].quaternion.toArray(s.prev, k * 4);
     s.prevH2.set(s.prevH);

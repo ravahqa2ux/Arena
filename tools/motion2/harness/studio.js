@@ -219,6 +219,65 @@ scenes.front = `(() => {
   }
   return S.endSheet();
 })()`;
+// Motion 2.2: dribles novos (pose do clipe; side +1 e -1)
+scenes.skills2 = actionScene([
+  ['pedaladaDupla', { anim: { speed: 2 } }], ['paraArranca', { anim: { speed: 4 } }], ['corteSeco', { anim: { speed: 4 } }],
+  ['corteSeco', { side: -1, anim: { speed: 4 }, view: { yaw: -Math.PI / 2 } }],
+], 'field', { yaw: -0.5, dist: 4.2 });
+// mãos de perto: parado, correndo, goleiro pronto, goleiro agarrando
+scenes.hands = `(() => {
+  S.beginSheet(4, 4, 300, 300);
+  const rows = [['parado', 'field', { speed: 0 }, 0], ['corrida', 'field', { speed: 5.6 }, 5.6], ['goleiro pronto', 'gk', { speed: 0, stance: 'gk', lookW: 0.6, lookX: 6, lookY: 0.4, lookZ: 0 }, 0], ['agarrou', 'gk', { speed: 0, hold: 1 }, 0]];
+  for (const [name, who, f, v] of rows) {
+    S.use(who); S.reset(f);
+    const drive = (a, dt) => { a.speed = v; if (v) { a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt; a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; } };
+    S.advance(90, drive);
+    for (let k = 0; k < 4; k++) {
+      S.advance(v ? 7 : 20, drive);
+      const a = S.actor.anim, hp = new __arena.Vec3(); S.actor.model.boneWorld(k % 2 ? 'RightHand' : 'LeftHand', hp);
+      const cam = S.g.camera, ang = a.heading + (k % 2 ? -Math.PI / 2 : Math.PI / 2) + (k > 1 ? 0.9 : 0.3);
+      cam.fov = 16; cam.position.set(hp.x + Math.sin(ang) * 1.3, hp.y + 0.15, hp.z + Math.cos(ang) * 1.3); cam.lookAt(hp.x, hp.y, hp.z); cam.updateProjectionMatrix();
+      S.g.renderer.render(1 / 60, 0, 0);
+      const src = S.g.renderer.canvas, sh = S.sheet, H = src.height, W = src.width, cw = H * 0.9;
+      const dx = (sh.i % sh.cols) * sh.cw, dy = Math.floor(sh.i / sh.cols) * sh.ch;
+      sh.ctx.drawImage(src, (W - cw) / 2, (H - cw) / 2, cw, cw, dx, dy, sh.cw, sh.ch);
+      if (!k) { sh.ctx.font = 'bold 15px sans-serif'; sh.ctx.fillStyle = '#ffeb3b'; sh.ctx.fillText(name, dx + 5, dy + 15); }
+      sh.i++;
+    }
+  }
+  return S.endSheet();
+})()`;
+// ombros: braços levantados (comemoração) e corrida de frente
+scenes.shoulders = actionScene([
+  ['celebArms', { view: { yaw: -Math.PI / 2, dist: 4 } }], ['gkJump', { view: { yaw: -Math.PI / 2, dist: 4.6 } }],
+], 'field', {});
+// medida do ombro: posição da mão esquerda (m, espaço do ator) em poses de braço
+scenes.shprobe = `(() => {
+  S.use('field'); const res = {}, hp = new __arena.Vec3(), sp = new __arena.Vec3();
+  const probe = (name) => { S.actor.model.root.updateWorldMatrix(true, true); S.actor.model.boneWorld('LeftHand', hp); S.actor.model.boneWorld('LeftArm', sp);
+    res[name] = { hand: [+(hp.x).toFixed(3), +(hp.y).toFixed(3), +(hp.z).toFixed(3)], sh: [+(sp.x).toFixed(3), +(sp.y).toFixed(3), +(sp.z).toFixed(3)] }; };
+  S.reset({ speed: 0, gaitPhase: 0 }); S.advance(30); probe('idle');
+  S.reset({ speed: 0 }); S.play('gkJump'); let t = 0; S.advance(Math.round(__arena.clips.gkJump.dur * 0.3 * 60), (a, dt) => { t += dt; a.actionT = t; }); probe('gkJumpTop');
+  S.reset({ speed: 5.6, gaitPhase: 0 }); const v = 5.6; let best = -9;
+  const drive = (a, dt) => { a.speed = v; a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt; a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+  S.advance(60, drive); for (let i = 0; i < 40; i++) { S.advance(1, drive); probe('run'); const f = (hp.x - S.actor.anim.x) * Math.sin(S.actor.anim.heading) + (hp.z - S.actor.anim.z) * Math.cos(S.actor.anim.heading); best = Math.max(best, f); }
+  res.runHandFwdMax = +best.toFixed(3);
+  return 'TEXT:' + JSON.stringify(res);
+})()`;
+// toque de condução por tipo (carry / turn / stop), de 3/4
+scenes.touch2 = `(() => {
+  S.use('field'); S.beginSheet(8, 3, 200, 300);
+  for (const kind of ['carry', 'turn', 'stop']) {
+    const v = kind === 'stop' ? 2.2 : 3.6;
+    S.reset({ speed: v, dribble: 1 });
+    const run = (a, dt) => { a.speed = v; a.dribble = 1; a.turn = kind === 'turn' ? 1.6 : 0; a.heading += a.turn * dt; a.moveDir = a.heading;
+      a.x += Math.sin(a.heading) * v * dt; a.z += Math.cos(a.heading) * v * dt; a.touchT += dt; a.gaitPhase = (a.gaitPhase + S.gait(v) * dt) % 1; };
+    S.advance(60, run);
+    const a = S.actor.anim; a.touchT = 0; a.touchFoot = 1; a.touchKind = kind;
+    for (let k = 0; k < 8; k++) { S.advance(3, run); S.snap({ label: k ? '' : 'toque ' + kind, yaw: -0.6, dist: 3.6 }); }
+  }
+  return S.endSheet();
+})()`;
 // amplitude do atraso do punho (graus) em cada velocidade
 scenes.wrist = `(() => {
   S.use('field'); const res = {};
