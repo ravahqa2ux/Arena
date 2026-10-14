@@ -104,6 +104,28 @@ const PREP = () => {
       reset(); ls(0, 0); step(30); pad.buttons[11].pressed = true; pad.buttons[11].value = 1; out.pulinhoR3 = watch(10, ['pulinho']); pad.buttons[11].pressed = false;
       // 5) A = passe (botão 0, segurar e soltar)
       reset(); pad.buttons[0].pressed = true; step(8); pad.buttons[0].pressed = false; out.passA = watch(30, ['pass']);
+      // 6) Motion 2.4: dribles novos por flick (parado)
+      reset(); step(10); flick2([D, -D], [-D, -D]); out.elasticoReverso = watch(20, ['elasticoReverso']);
+      reset(); step(10); flick2([-D, -D], [D, D]); out.elasticoTriplo = watch(20, ['elasticoTriplo']);
+      reset(); step(10); flick2([0, -1], [D, D]); out.berbaSpin = watch(20, ['berbaSpin']);
+      // 7) Gameplay 2.2: trivela (LT + A / LT + B), cruzamento antecipado (LB + X) e rasteiro (LB + RB + X)
+      const kick = (btns, main) => {
+        reset(); ls(0, 0); step(20);
+        for (const b of btns) pad.buttons[b].pressed = true;
+        let sp = null, vy = null, rel = false;
+        const pk0 = g.releaseKick.bind(g);
+        g.releaseKick = () => { const pk = g.pendingKick; sp = pk && pk.special; pk0(); vy = +g.ballVelocity.y.toFixed(2); rel = +g.ballSpin.y.toFixed(2); };
+        pad.buttons[main].pressed = true; step(10); pad.buttons[main].pressed = false; step(1);
+        for (const b of btns) pad.buttons[b].pressed = false;
+        for (let i = 0; i < 60 && vy === null; i++) step(1);
+        g.releaseKick = pk0;
+        return { special: sp, liftVy: vy, spinY: rel, anim: me.anim.action, trivelaFlag: me.anim.trivela };
+      };
+      out.trivelaPass = kick([6], 0);
+      out.trivelaShot = kick([6], 1);
+      out.earlyCross = kick([4], 2);
+      out.groundCross = kick([4, 5], 2);
+      out.normalCross = kick([], 2);
       out.skillsTelemetry = g.telemetry.skills;
       out.state = { owner: g.owner === me, action: me.anim.action, phase: globalThis.__arena.store.get().hud.phase, restart: !!g.restart, x: +me.anim.x.toFixed(1) };
       return out;

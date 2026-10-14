@@ -59,3 +59,53 @@ Kc.push(
     moving: true,
   },
 );
+/* ---------------- ARENA Motion 2.4: dribles do FIFA 19 ---------------- */
+Object.assign(O3, {
+  // mesma perna do elástico, lateral invertido: dentro (bola para a esquerda) e fora (sai pela direita)
+  elasticoReverso: O3.elastico.map((k) => vt(k[0], -k[1], k[2], -k[3], -k[4], k[5], k[6], k[7], k[8])),
+  elasticoTriplo: [
+    vt(0, 0, 0, 0, -0.06, 0.48),
+    vt(0.15, -0.02, 0.06, -4, -0.16, 0.42, 0.11, 0.9, 1),
+    vt(0.28, 0, 0.1, 4, 0.02, 0.42, 0.11, 1, 1),
+    vt(0.42, -0.04, 0.15, -6, -0.18, 0.42, 0.11, 1, 1),
+    vt(0.56, -0.01, 0.2, 2, -0.12, 0.44, 0.11, 1, 1),
+    vt(0.7, 0.12, 0.28, 14, 0.12, 0.46, 0.11, 0.6, 1),
+    vt(1, 0.5, 0.6, 32, 0.08, 0.52),
+  ],
+  berbaSpin: [
+    vt(0, 0, 0, 0, -0.08, 0.46),
+    vt(0.16, 0, 0.02, 0, -0.1, 0.36, 0.11, 1, 1),
+    vt(0.34, 0.01, -0.06, 22, -0.1, 0.12, 0.11, 1, 1),
+    vt(0.52, 0.05, -0.1, 62, 0.02, 0.1, 0.11, 0.8, -1),
+    vt(0.7, 0.16, -0.1, 88, 0.1, 0.3, 0.11, 0.5, -1),
+    vt(1, 0.48, -0.06, 96, 0.06, 0.52),
+  ],
+});
+Object.assign(O3.berbaSpin, { decay: 0.18, steerFrom: 0.62 });
+Object.assign(O3.elasticoTriplo, { decay: 0.14, steerFrom: 0.72 });
+Kc.push(
+  {
+    id: "elasticoReverso",
+    name: "Elástico reverso",
+    stars: 5,
+    keyboard: "Num 1 3 (ou 3 1)",
+    gamepad: "RS: toque ↙ ↘ (ou ↘ ↙)",
+    description: "O elástico ao contrário: empurra com a parte de dentro e volta com a de fora, saindo pelo lado do pé.",
+  },
+  {
+    id: "elasticoTriplo",
+    name: "Elástico triplo",
+    stars: 5,
+    keyboard: "Num 3 7 (ou 1 9)",
+    gamepad: "RS: toque ↘ ↖ (ou ↙ ↗)",
+    description: "Dois vaivéns de elástico seguidos com a mesma perna antes de sair para o lado.",
+  },
+  {
+    id: "berbaSpin",
+    name: "Giro de Berbatov",
+    stars: 3,
+    keyboard: "Num 2 7 (ou 2 9)",
+    gamepad: "RS: toque ↓ ↖ (ou ↓ ↗)",
+    description: "Pisa e puxa a bola para trás girando o corpo, e sai para o lado com a outra perna.",
+  },
+);

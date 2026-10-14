@@ -256,3 +256,45 @@ Object.assign(gf, {
     le(0.54, { ...H_, Spine: [12, 0, 0] }, [0, -0.04, 0]),
   ]),
 });
+/* ---------------- ARENA Motion 2.4: dribles do FIFA 19 (elástico reverso, elástico triplo, giro de Berbatov) ----------------
+ * O elástico reverso usa a MESMA perna do elástico com o movimento lateral invertido (primeiro a parte de dentro,
+ * depois a de fora): rotações Y/Z e o quadril lateral do elástico original são negados, sem trocar esquerda/direita. */
+(() => {
+  const E = gf.elastico.keys;
+  // pernas e tronco: mesmo osso com Y/Z negados; braços: espelhados (o braço de equilíbrio troca de lado)
+  const negYZ = (k, t) => {
+    const b = {};
+    for (const [n, v] of Object.entries(k.b)) {
+      const arm = /Arm$/.test(n);
+      const dst = arm ? (n.startsWith("Left") ? n.replace("Left", "Right") : n.replace("Right", "Left")) : n;
+      b[dst] = [v[0], -v[1], -v[2]];
+    }
+    return { t: t ?? k.t, b, hip: [-k.hip[0], k.hip[1], k.hip[2]] };
+  };
+  const at = (k, t) => ({ t, b: k.b, hip: k.hip });
+  const dE = gf.elastico.dur, sh = 0.21;
+  Object.assign(gf, {
+    elasticoReverso: arenaClip(dE, E.map((k) => negYZ(k))),
+    // elástico triplo: fora, dentro, fora, dentro e sai (o vaivém do elástico duas vezes)
+    elasticoTriplo: arenaClip(dE + sh, [
+      at(E[0], 0), at(E[1], 0.12), at(E[2], 0.23), at(E[1], 0.34), at(E[2], 0.45),
+      ...E.slice(3).map((k) => at(k, k.t + sh)),
+    ]),
+    // Berbatov: pisa com a direita, puxa a bola para trás girando para a esquerda e sai com a esquerda
+    berbaSpin: arenaClip(0.8, [
+      le(0, { ...H_ }, [0, -0.03, 0]),
+      le(0.12, { Spine: [-2, 0, 0], RightUpLeg: [-34, 0, -2], RightLeg: [32, 0, 0], RightFoot: [-24, 0, 0],
+        LeftUpLeg: [-4, 0, 2], LeftLeg: [24, 0, 0], ...aBal }, [0, -0.04, -0.02]),
+      le(0.26, { Hips: [0, 8, 0], Spine: [2, 6, 0], RightUpLeg: [8, 4, -4], RightLeg: [44, 0, 0], RightFoot: [-12, 0, 0],
+        LeftUpLeg: [-8, 0, 4], LeftLeg: [30, 0, 0], ...aWideL }, [0, -0.06, -0.04]),
+      le(0.4, { Hips: [0, 20, -4], Spine: [8, 14, -4], Neck: [4, -8, 0], RightUpLeg: [-4, 10, -6], RightLeg: [36, 0, 0],
+        LeftUpLeg: [-22, -10, 10], LeftLeg: [40, 0, 0], LeftFoot: [-4, 0, 0], ...aWideL }, [0.02, -0.07, 0]),
+      le(0.52, { Hips: [0, 14, -6], Spine: [12, 10, -6], LeftUpLeg: [-30, -16, 14], LeftLeg: [34, 0, 0], LeftFoot: [0, 0, 0],
+        RightUpLeg: [2, 0, -4], RightLeg: [34, 0, 0], LeftArm: [-24, 0, -40], RightArm: [10, 0, 58] }, [0.03, -0.07, 0.02]),
+      le(0.66, { Hips: [0, 6, -4], Spine: [16, 6, -4], Neck: [-4, -4, 0], LeftUpLeg: [-36, 0, 6], LeftLeg: [44, 0, 0],
+        RightUpLeg: [8, 0, -4], RightLeg: [28, 0, 0], RightFoot: [10, 0, 0], LeftArm: [26, 0, -58], RightArm: [-30, 0, 54],
+        LeftForeArm: [0, -40, 0], RightForeArm: [0, 44, 0] }, [0.02, -0.07, 0.03]),
+      le(0.8, { ...H_ }, [0, -0.03, 0]),
+    ]),
+  });
+})();

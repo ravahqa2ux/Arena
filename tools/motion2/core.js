@@ -16,6 +16,14 @@ function anim2Fail(err) {
     console.warn("[ARENA Motion 2.0] camada desativada após erro:", err);
   }
 }
+// Motion 2.4: o jogo limitava o passo da animação a 0,05 s por quadro, enquanto a simulação andava o
+// tempo real (até 0,5 s). Abaixo de 20 fps as transições, fades e posturas ficavam em câmera lenta em
+// relação ao movimento ("animação atrasada"). Agora a animação usa o mesmo tempo da simulação (até 0,5 s).
+function anim2FrameDt(real, clamped) {
+  const C = globalThis.__anim2cfg;
+  if (C && C.oldDt) return clamped;
+  return real > 0 ? Math.min(0.5, real) : clamped;
+}
 function anim2Rng(seed) {
   let s = seed >>> 0 || 0x9e3779b9;
   return () => ((s ^= s << 13), (s ^= s >>> 17), (s ^= s << 5), (s >>> 0) / 4294967296);
@@ -32,7 +40,7 @@ const anim2FootP = [new q(), new q()], anim2FootQ = [new Un(), new Un()];
 const anim2Up = new q(0, 1, 0);
 const anim2Tmp = new Float32Array(3);
 
-let ANIM2_BANK_SIGN = -1;
+let ANIM2_BANK_SIGN = -1, ANIM2_TRIV_SIGN = 1;
 function anim2Init(r, o) {
   try {
     const rnd = anim2Rng((o.seed >>> 0) ^ 0x5bd1e995);
@@ -221,7 +229,7 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
   const s = r.anim2, C = globalThis.__anim2cfg;
   if (anim2Off || !s || !(dt > 0) || (C && C.noBody)) return;
   try {
-    if (Math.hypot(e.x - s.lastX, e.z - s.lastZ) > 1) anim2Reset(s);
+    if (Math.hypot(e.x - s.lastX, e.z - s.lastZ) > 1 + 9 * dt) anim2Reset(s);
     s.lastX = e.x;
     s.lastZ = e.z;
     s.clock += dt;
@@ -378,6 +386,15 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
         D[B.sp2].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, fs * 5 * tw * Ms));
         oArm.quaternion.multiply(anim2Q1.setFromAxisAngle(So, (R ? 1 : -1) * 7 * tw * Ms));
       }
+    }
+
+    // ---------------- Motion 2.4: trivela (bate com a parte de fora): perna e pé giram para dentro
+    if (e.trivela && (cur.id === "pass" || cur.id === "kick") && cur.w > 0.01 && !(C && C.noTrivela)) {
+      const R = (cur.side ?? e.actionSide ?? 1) > 0, sgT = (R ? 1 : -1) * ANIM2_TRIV_SIGN, w = cur.w;
+      D[R ? B.ulR : B.ulL].quaternion.multiply(anim2Q1.setFromAxisAngle(Fc, sgT * 26 * w * Ms));
+      const ftT = D[R ? B.ftR : B.ftL];
+      ftT.quaternion.multiply(anim2Q1.setFromAxisAngle(Fc, sgT * 30 * w * Ms));
+      ftT.quaternion.multiply(anim2Q1.setFromAxisAngle(So, -sgT * 16 * w * Ms));
     }
 
     // ---------------- trava dos pés (IK) para as mudanças de quadril não deslizarem os pés

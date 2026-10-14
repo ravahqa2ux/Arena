@@ -508,6 +508,13 @@ scenes.hands2 = `(() => {
   }
   return S.endSheet();
 })()`;
+// Motion 2.4: dribles do FIFA 19 e trivela
+scenes.skills3 = actionScene([
+  ['elastico', {}], ['elasticoReverso', {}], ['elasticoTriplo', {}], ['berbaSpin', {}], ['berbaSpin', { view: { yaw: -Math.PI / 2 } }],
+], 'field', { yaw: -0.5, dist: 4.2 });
+scenes.trivela = actionScene([
+  ['pass', { anim: { trivela: 0 } }], ['pass', { anim: { trivela: 1 } }], ['kick', { anim: { trivela: 1 } }], ['pass', { side: -1, anim: { trivela: 1 } }],
+], 'field', { yaw: -Math.PI / 2 + 0.25, dist: 3.8 });
 module.exports = { scenes, actionScene, installStudio };
 
 if (require.main === module) {

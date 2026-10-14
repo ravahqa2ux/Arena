@@ -50,12 +50,12 @@ def main():
         # 6. fase do jogo + fôlego
         (
             "for(const m of this.actors)m.model.update(m.anim,t)",
-            "for(const m of this.actors)anim2Feed(m,a,this),m.model.update(m.anim,t)",
+            "for(const m of this.actors)anim2Feed(m,a,this),m.model.update(m.anim,anim2FrameDt(i,t))",
         ),
     ]
     if clips:
         patches.append(("const bh={gk:", clips + "\nconst bh={gk:"))
-    for extra_name in ("patches_celeb.py", "patches_gameplay.py", "patches_skills.py"):
+    for extra_name in ("patches_celeb.py", "patches_gameplay.py", "patches_skills.py", "patches_controls.py"):
         extra = os.path.join(HERE, extra_name)
         if os.path.exists(extra):
             ns = {"__file__": extra, "HERE": HERE}
