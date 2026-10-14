@@ -29,4 +29,35 @@ PATCHES = [
         'Z=R?g.anim.action==="gkDiveHigh"?2.55:g.anim.action==="gkJump"?2.75:E?1.15:2.05:1.65;',
         "Z=R?(g.anim.action===\"gkDiveHigh\"?2.55:g.anim.action===\"gkJump\"?2.75:E?1.15:2.05)*gp2('gkHigh'):1.65;",
     ),
+    # ---- Gameplay 2.1 ----
+    # GK lateral position: angle bisector
+    (
+        "Ne(this.ball.z*(.14+Lt*.025),-3.66+.6,Ce.goalHalfW-.6)",
+        "gp2GkZ(this.ball.x,this.ball.z,Se,Oe,Lt,Ne(this.ball.z*(.14+Lt*.025),-3.66+.6,Ce.goalHalfW-.6))",
+    ),
+    # AI shielding (after the AI jockey assignment; slows the carrier while shielding)
+    (
+        '(v.anim.stance="jockey"),v.data.position==="GOL"&&this.owner!==v){',
+        '(v.anim.stance="jockey"),gp2Shield(this,v)&&(M*=.8,b*=.8),v.data.position==="GOL"&&this.owner!==v){',
+    ),
+    # shielding body orientation
+    (
+        'v.anim.stance==="jockey"||v.data.position==="GOL"&&this.owner!==v?ls(this.ball.x-v.anim.x,this.ball.z-v.anim.z):',
+        'gp2ShieldHeading(v)!=null?gp2ShieldHeading(v):v.anim.stance==="jockey"||v.data.position==="GOL"&&this.owner!==v?ls(this.ball.x-v.anim.x,this.ball.z-v.anim.z):',
+    ),
+    # standing tackle from behind on a shielding carrier can be blocked by the body
+    (
+        "h=l>-.15&&l<f&&u<(t.slide?.58:.5),p=this.owner&&this.owner.side!==e.side?this.owner:null;if(h)",
+        "h=l>-.15&&l<f&&u<(t.slide?.58:.5),p=this.owner&&this.owner.side!==e.side?this.owner:null;if(h&&!(!t.slide&&gp2ShieldBlock(this,e,p)))",
+    ),
+    # aerial chest/thigh trap error
+    (
+        "k=Math.hypot(G.x,G.z)||1;this.ballVelocity.set(T.vx*.6+G.x/k*.9,-1.3,T.vz*.6+G.z/k*.9),",
+        "k=Math.hypot(G.x,G.z)||1;const gp2In=this.ballVelocity.length();this.ballVelocity.set(T.vx*.6+G.x/k*.9,-1.3,T.vz*.6+G.z/k*.9),gp2TrapErr(this,T,gp2In),",
+    ),
+    # dribble touch: more visible leg action
+    (
+        "D[cn[`${H}UpLeg`]].quaternion.multiply(qn.setFromAxisAngle(Ch,-8*k*Ms)),D[cn[`${H}Leg`]].quaternion.multiply(qn.setFromAxisAngle(Ch,7*k*Ms)),D[cn[`${H}Foot`]].quaternion.multiply(qn.setFromAxisAngle(Ch,9*k*Ms))",
+        "D[cn[`${H}UpLeg`]].quaternion.multiply(qn.setFromAxisAngle(Ch,-8*k*Ms*gp2('touchAmp'))),D[cn[`${H}Leg`]].quaternion.multiply(qn.setFromAxisAngle(Ch,7*k*Ms*gp2('touchAmp'))),D[cn[`${H}Foot`]].quaternion.multiply(qn.setFromAxisAngle(Ch,9*k*Ms*gp2('touchAmp')))",
+    ),
 ]

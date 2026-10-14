@@ -190,6 +190,22 @@ scenes.gk = actionScene([
 scenes.gkcatch = actionScene([
   ['gkCatch', {}], ['gkCatch', { view: { yaw: -Math.PI / 2, dist: 4.4 } }], ['gkCatchLow', {}], ['gkCatchLow', { view: { yaw: -Math.PI / 2, dist: 4.4 } }],
 ], 'gk', { yaw: -0.25, dist: 4.4 });
+// dribble touch: jog with ball, touch on every 2nd footfall; row 1 = original amplitude, row 2 = new
+scenes.touch = `(() => {
+  S.use('field'); S.beginSheet(8, 2, 200, 300);
+  for (const amp of [1, 1.8]) {
+    globalThis.__gp2 = Object.assign(globalThis.__gp2 || {}, { touchAmp: amp });
+    S.reset({ speed: 3.6 });
+    let steps = 0;
+    const run = (a, dt) => { a.speed = 3.6; a.dribble = 1; const p0 = a.gaitPhase; a.gaitPhase = (a.gaitPhase + S.gait(3.6) * dt) % 1;
+      a.x += Math.sin(a.heading) * 3.6 * dt; a.z += Math.cos(a.heading) * 3.6 * dt; a.touchT += dt;
+      if (Math.floor(p0 * 2) !== Math.floor(a.gaitPhase * 2) && ++steps % 2 === 0) { a.touchT = 0; a.touchFoot = a.gaitPhase < 0.5 ? -1 : 1; } };
+    S.advance(90, run);
+    while (true) { const before = steps; S.advance(1, run); if (steps !== before && steps % 2 === 0) break; }
+    for (let k = 0; k < 8; k++) { S.advance(3, run); S.snap({ label: k ? '' : 'toque x' + amp, yaw: -0.25, dist: 3.8 }); }
+  }
+  return S.endSheet();
+})()`;
 scenes.contact2 = actionScene([
   ['tackle', {}], ['tackle', { view: { yaw: -Math.PI / 2 } }], ['chestControl', {}], ['chestControl', { view: { yaw: -Math.PI / 2 } }],
 ], 'field', { yaw: -0.2, dist: 4.4 });

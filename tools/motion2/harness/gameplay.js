@@ -26,6 +26,7 @@ async function run(file, seconds, matches, gp2) {
     for (let m = 0; m < cfg.matches; m++) {
       store.set({ selection: { homeTeamId: 'bra', awayTeamId: 'arg', homeKit: 'home', awayKit: 'home' } });
       g.startMatch();
+      g.rng = new g.rng.constructor((cfg.seed + m * 7919) >>> 0);
       // pure AI-vs-AI: no human side, so AI auto-takes kickoffs immediately
       g.humanSides = [];
       g.currentHumanSide = null;
@@ -37,7 +38,7 @@ async function run(file, seconds, matches, gp2) {
       let prevOwner = g.owner, prevScore = (g.scores || [0, 0]).join(','), lastBallMove = 0, lastBall = { x: g.ball.x, z: g.ball.z };
       // direct pass-outcome tracking: when a pass starts (passFlight set), remember the passer's side
       // and intended receiver; resolve when someone next owns the ball or it goes out.
-      let flight = null, shotOn = false; // { side, startFrame }
+      let flight = null, shotOn = false, shSide = null, shT = -999, prSide = null, prT = -999, prevHeld = false; // { side, startFrame }
       const steps = Math.round(cfg.seconds / CX);
       for (let i = 0; i < steps; i++) {
         try { g.step(CX); } catch (e) { agg.errors++; if (agg.errors < 3) agg.firstError = String(e).slice(0, 300); break; }
@@ -51,6 +52,8 @@ async function run(file, seconds, matches, gp2) {
         }
         if (g.shotFlight && !shotOn) { shotOn = true; agg.shotEvents = (agg.shotEvents || 0) + 1; } else if (!g.shotFlight) shotOn = false;
         agg.totalFrames++;
+        if (g.owner && g.owner.anim.stance === 'shield') agg.shieldFrames = (agg.shieldFrames || 0) + 1;
+        if (g.heldBy && !prevHeld) agg.gkHolds = (agg.gkHolds || 0) + 1; prevHeld = !!g.heldBy;
         const b = g.ball, bv = g.ballVelocity;
         if (!isFinite(b.x) || !isFinite(b.z) || !isFinite(bv.x)) { agg.nanFrames++; break; }
         const bs = Math.hypot(bv.x, bv.y, bv.z);
@@ -59,13 +62,22 @@ async function run(file, seconds, matches, gp2) {
         for (const a of g.actors) { const ps = Math.hypot(a.vx, a.vz); if (ps > agg.playerSpeedMax) agg.playerSpeedMax = ps; }
         // possession change
         if (g.owner && g.owner !== prevOwner) {
-          if (prevOwner && g.owner.side !== prevOwner.side) agg.possChanges++;
+          if (prevOwner && g.owner.side !== prevOwner.side) { agg.possChanges++; if (prSide && prSide !== g.owner.side && i - prT < 150) { agg.pressLost = (agg.pressLost || 0) + 1; prSide = null; }
+            if (shSide && shSide !== g.owner.side && i - shT < 120) { agg.shieldLost = (agg.shieldLost || 0) + 1; shSide = null; } }
           prevOwner = g.owner;
         }
         // stuck detection
         const moved = Math.hypot(b.x - lastBall.x, b.z - lastBall.z);
         if (moved > 0.05) { lastBallMove = i; lastBall = { x: b.x, z: b.z }; }
         if (g.restart || store.get().hud.phase !== 'play') lastBallMove = i; if (i - lastBallMove > 240) agg.stuckFrames++;
+        if (g.owner && g.owner.data.position !== 'GOL' && (!prSide || i - prT > 150)) {
+          const ow = g.owner, dirA = g.attackDirection(ow.side);
+          if (Math.abs(dirA * 52.5 - ow.anim.x) > 20) {
+            let nd = 9; for (const o of g.actors) if (o.side !== ow.side && o.anim.visible) nd = Math.min(nd, Math.hypot(o.anim.x - ow.anim.x, o.anim.z - ow.anim.z));
+            if (nd < 1.3) { prSide = ow.side; prT = i; agg.pressEp = (agg.pressEp || 0) + 1; }
+          }
+        }
+        if (g.owner && g.owner.anim.stance === 'shield') { if (!shSide || i - shT > 120) agg.shieldEp = (agg.shieldEp || 0) + 1; shSide = g.owner.side; shT = i; }
       }
       const hud = store.get().hud;
       // read goals from hud.goals (persists through our read) and live scores before restart
@@ -83,8 +95,9 @@ async function run(file, seconds, matches, gp2) {
       g.restartMatch && g.restartMatch();
     }
     return agg;
-  }, { seconds, matches });
+  }, { seconds, matches, seed: +(process.env.SEED || 1) });
   out.consoleErrors = logs.length;
+  out.gp2stat = await page.evaluate(() => globalThis.__gp2stat || null);
   out.consoleSample = logs.slice(0, 5);
   await browser.close();
   return out;

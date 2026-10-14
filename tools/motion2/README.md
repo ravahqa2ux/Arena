@@ -12,8 +12,23 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 | `core.js` | camada procedural (corpo, olhar, inertialization, contato com o chão) |
 | `clips.js` | comemorações novas + ações redesenhadas (`gkCatch`, `gkCatchLow`, `tackle`, `chestControl`, `pass`) com os mesmos `dur`/`contact` do original |
 | `celeb.js`, `patches_celeb.py` | sistema de comemorações |
-| `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores em `globalThis.__gp2` |
+| `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores e regras novas em `globalThis.__gp2` |
+| `harness/` | testes com Playwright: `gameplay.js` (IA × IA com seed, `SEED=n`), `shottest.js` (finalização controlada), `gkangle.py` (geometria do goleiro), `studio.js` (folhas de pose) |
 
-Depuração no navegador:
-- `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1 }` desliga cada camada de animação.
-- `globalThis.__gp2 = { passErr: 1, passPressure: 1, laneReach: 1, laneGk: 1, shotSpread: 1, gkHigh: 1, intercept: 1 }` volta a jogabilidade ao comportamento original (qualquer chave ausente vale 1).
+## Chaves de `globalThis.__gp2`
+
+| Chave | Padrão | Efeito |
+|---|---|---|
+| `passErr`, `passPressure` | 1,55 / 1,6 | erro de passe e peso da pressão |
+| `laneReach`, `laneGk` | 1,22 / 1,3 | alcance de interceptação na linha de passe |
+| `intercept` | 1,14 | raio de disputa de bola solta |
+| `shotSpread` | 1,3 | dispersão do chute |
+| `gkHigh` | 1,08 | alcance do goleiro na bola alta |
+| `trapErr` | 1 | erro no domínio de peito/coxa (o original era sempre perfeito) |
+| `shieldBlock` | 1 | proteção de bola (Espaço/LB) bloqueia bote em pé por trás |
+| `touchAmp` | 1,8 | amplitude visual do toque de condução |
+| `shieldAI` | 0 | IA protege a bola sob pressão. Experimental: nos testes não reduziu perdas de posse |
+| `gkAngle` | 0 | goleiro na bissetriz do ângulo. Experimental: reduz o ângulo livre no modelo geométrico, mas sofreu mais gols nos testes de finalização |
+
+Com valor 1 nos multiplicadores e 0 em `trapErr`/`shieldBlock`/`touchAmp=1`, o jogo volta ao original.
+Depuração da animação: `globalThis.__anim2cfg = { noBody: 1, noGaze: 1, noFinal: 1 }`.
