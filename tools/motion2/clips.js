@@ -125,3 +125,74 @@ Object.assign(gf, {
     ],
   },
 });
+/* ---------------- Gameplay 2.0: ações redesenhadas (mesmos dur/contact => lógica do jogo intacta) ---------------- */
+(() => {
+  const keep = (id, keys) => { const c = gf[id]; if (c) gf[id] = { ...c, keys }; };
+  // Defesa encaixada: estende as mãos, recebe e AMORTECE (joelhos cedem, tronco curva, bola vem ao peito)
+  keep("gkCatch", [
+    le(0, { Spine: [16, 0, 0], Spine1: [0, 0, 0], Neck: [0, 0, 0], ...Qn(0.1), LeftArm: [-45, 0, -40], RightArm: [-45, 0, 40], LeftForeArm: [0, -45, 0], RightForeArm: [0, 45, 0] }, [0, -0.1, 0]),
+    le(0.12, { Spine: [6, 0, 0], Neck: [-4, 0, 0], ...Qn(0.05), LeftArm: [-78, 0, -38], RightArm: [-78, 0, 38], LeftForeArm: [0, -22, 0], RightForeArm: [0, 22, 0] }, [0, -0.05, 0.03]),
+    le(0.24, { Spine: [12, 0, 0], Neck: [6, 0, 0], ...Qn(0.08), LeftArm: [-70, 0, -44], RightArm: [-70, 0, 44], LeftForeArm: [0, -55, 0], RightForeArm: [0, 55, 0] }, [0, -0.08, 0.02]),
+    le(0.38, { Spine: [30, 0, 0], Spine1: [10, 0, 0], Neck: [16, 0, 0], ...Qn(0.2), LeftArm: [-34, 0, -60], RightArm: [-34, 0, 60], LeftForeArm: [0, -118, 0], RightForeArm: [0, 118, 0] }, [0, -0.2, -0.06]),
+    le(0.56, { Spine: [22, 0, 0], Spine1: [6, 0, 0], Neck: [10, 0, 0], ...Qn(0.12), LeftArm: [-30, 0, -62], RightArm: [-30, 0, 62], LeftForeArm: [0, -122, 0], RightForeArm: [0, 122, 0] }, [0, -0.12, -0.04]),
+    le(0.75, { Spine: [10, 0, 0], Spine1: [0, 0, 0], Neck: [4, 0, 0], ...Qn(0.04), LeftArm: [-30, 0, -64], RightArm: [-30, 0, 64], LeftForeArm: [0, -118, 0], RightForeArm: [0, 118, 0] }, [0, -0.04, 0]),
+  ]);
+  // Bola rasteira: abaixa com as mãos em concha no chão, recolhe junto ao corpo e levanta protegendo a bola
+  keep("gkCatchLow", [
+    le(0, { Spine: [16, 0, 0], Spine1: [0, 0, 0], Neck: [0, 0, 0], ...Qn(0.1), LeftArm: [-45, 0, -40], RightArm: [-45, 0, 40], LeftForeArm: [0, -30, 0], RightForeArm: [0, 30, 0] }, [0, -0.1, 0]),
+    le(0.18, { Spine: [36, 0, 0], Spine1: [10, 0, 0], Neck: [6, 0, 0], ...Qn(0.3), LeftArm: [-58, 0, -62], RightArm: [-58, 0, 62], LeftForeArm: [0, -12, 0], RightForeArm: [0, 12, 0] }, [0, -0.3, -0.02]),
+    le(0.3, { Spine: [44, 0, 0], Spine1: [12, 0, 0], Neck: [12, 0, 0], ...Qn(0.38), LeftArm: [-52, 0, -70], RightArm: [-52, 0, 70], LeftForeArm: [0, -18, 0], RightForeArm: [0, 18, 0] }, [0, -0.38, -0.04]),
+    le(0.48, { Spine: [36, 0, 0], Spine1: [12, 0, 0], Neck: [14, 0, 0], ...Qn(0.3), LeftArm: [-36, 0, -64], RightArm: [-36, 0, 64], LeftForeArm: [0, -100, 0], RightForeArm: [0, 100, 0] }, [0, -0.3, -0.05]),
+    le(0.68, { Spine: [20, 0, 0], Spine1: [6, 0, 0], Neck: [8, 0, 0], ...Qn(0.12), LeftArm: [-30, 0, -62], RightArm: [-30, 0, 62], LeftForeArm: [0, -120, 0], RightForeArm: [0, 120, 0] }, [0, -0.12, -0.02]),
+    le(0.9, { Spine: [8, 0, 0], Spine1: [0, 0, 0], Neck: [4, 0, 0], ...Qn(0.03), LeftArm: [-30, 0, -64], RightArm: [-30, 0, 64], LeftForeArm: [0, -118, 0], RightForeArm: [0, 118, 0] }, [0, -0.03, 0]),
+  ]);
+  // Domínio no peito: peito estufado com braços abertos para trás (abre espaço para a bola),
+  // depois o tronco "cede" e curva para baixo, amortecendo a bola em direção ao pé
+  keep("chestControl", [
+    le(0, { ...Mr, Spine: [-4, 0, 0], LeftArm: [-20, 0, -54], RightArm: [-20, 0, 54] }, [0, -0.025, 0]),
+    le(0.12, { Hips: [-6, 0, 0], Spine: [-18, 0, 0], Spine1: [-10, 0, 0], Spine2: [-4, 0, 0], Neck: [18, 0, 0], ...Qn(0.07),
+      LeftArm: [14, 0, -62], RightArm: [14, 0, 62], LeftForeArm: [0, -26, 0], RightForeArm: [0, 26, 0] }, [0, -0.06, -0.02]),
+    le(0.2, { Hips: [-8, 0, 0], Spine: [-22, 0, 0], Spine1: [-12, 0, 0], Spine2: [-6, 0, 0], Neck: [24, 0, 0], ...Qn(0.1),
+      LeftArm: [18, 0, -66], RightArm: [18, 0, 66], LeftForeArm: [0, -30, 0], RightForeArm: [0, 30, 0] }, [0, -0.09, -0.04]),
+    le(0.32, { Hips: [0, 0, 0], Spine: [14, 0, 0], Spine1: [6, 0, 0], Spine2: [2, 0, 0], Neck: [26, 0, 0], ...Qn(0.12),
+      LeftArm: [-4, 0, -60], RightArm: [-4, 0, 60], LeftForeArm: [0, -24, 0], RightForeArm: [0, 24, 0] }, [0, -0.12, 0.02]),
+    le(0.46, { Hips: [0, 0, 0], Spine: [10, 0, 0], Spine1: [2, 0, 0], Spine2: [0, 0, 0], Neck: [18, 0, 0], ...Qn(0.06), ...ha }, [0, -0.05, 0]),
+    le(0.64, { ...Mr }, [0, 0, 0]),
+  ]);
+  // Passe de chapa: pé de apoio plantado com joelho flexionado, perna de passe com back-swing visível,
+  // pé aberto (chapa) no contato e follow-through na direção do passe; braço oposto equilibra
+  keep("pass", [
+    le(0, { Hips: [0, 0, 0], Spine: [5, 0, 0], Neck: [10, 0, 0], LeftUpLeg: [-10, 0, 0], LeftLeg: [15, 0, 0], LeftFoot: [-4, 0, 0],
+      RightUpLeg: [5, 0, 0], RightLeg: [15, 0, 0], RightFoot: [0, 0, 0], LeftArm: [-10, 0, -68], RightArm: [0, 0, 68], LeftForeArm: [0, -20, 0], RightForeArm: [0, 20, 0] }, [0, 0, 0]),
+    le(0.09, { Hips: [0, -16, -3], Spine: [10, 12, 0], Neck: [20, 0, 0], LeftUpLeg: [-21, 0, 4], LeftLeg: [43, 0, 0], LeftFoot: [-21, 0, 0],
+      RightUpLeg: [36, -34, -8], RightLeg: [72, 0, 0], RightFoot: [6, 0, 0], LeftArm: [-34, 0, -44], RightArm: [26, 0, 56] }, [0, -0.06, 0]),
+    le(0.17, { Hips: [0, 6, -4], Spine: [12, -2, -3], Neck: [24, 0, 0], LeftUpLeg: [-23, 0, 5], LeftLeg: [46, 0, 0], LeftFoot: [-23, 0, 0],
+      RightUpLeg: [-26, -50, -10], RightLeg: [16, 0, 0], RightFoot: [-8, -10, 0], LeftArm: [-30, 0, -40], RightArm: [6, 0, 56] }, [0, -0.08, 0.03]),
+    le(0.28, { Hips: [0, 12, -2], Spine: [9, -8, 0], Neck: [16, 0, 0], LeftUpLeg: [-18, 0, 3], LeftLeg: [36, 0, 0], LeftFoot: [-18, 0, 0],
+      RightUpLeg: [-46, -38, -6], RightLeg: [18, 0, 0], RightFoot: [-6, -6, 0], LeftArm: [-16, 0, -54], RightArm: [-6, 0, 62] }, [0, -0.045, 0.04]),
+    le(0.48, { Hips: [0, 0, 0], Spine: [5, 0, 0], Neck: [6, 0, 0], LeftUpLeg: [-8, 0, 0], LeftLeg: [15, 0, 0], LeftFoot: [-4, 0, 0],
+      RightUpLeg: [-12, -10, 0], RightLeg: [25, 0, 0], RightFoot: [0, 0, 0], LeftArm: [-8, 0, -70], RightArm: [-4, 0, 70] }, [0, 0, 0]),
+  ]);
+  // Bote em pé: avanço com o quadril baixo, perna de apoio flexionada, perna do bote estendida à frente
+  // (pé virado de lado), tronco inclinado sobre a bola e braços abertos para equilíbrio
+  keep("tackle", [
+    le(0, { ...Mr }, [0, 0, 0]),
+    le(0.1, { Hips: [0, -6, 2], Spine: [20, 6, 0], Neck: [-8, 0, 0],
+      LeftUpLeg: [-38, 0, 6], LeftLeg: [62, 0, 0], LeftFoot: [-22, 0, 0],
+      RightUpLeg: [-34, -10, -14], RightLeg: [52, 0, 0], RightFoot: [-6, 0, 0],
+      LeftArm: [-30, 0, -40], RightArm: [12, 0, 48], LeftForeArm: [0, -30, 0], RightForeArm: [0, 26, 0] }, [0, -0.16, 0.04]),
+    le(0.22, { Hips: [0, -14, 6], Spine: [28, 10, 0], Spine1: [6, 4, 0], Neck: [-14, -6, 0],
+      LeftUpLeg: [-48, 0, 8], LeftLeg: [92, 0, 0], LeftFoot: [-36, 0, 0],
+      RightUpLeg: [-72, -28, -30], RightLeg: [6, 0, 0], RightFoot: [-18, -30, 0],
+      LeftArm: [-48, 0, -30], RightArm: [24, 0, 52], LeftForeArm: [0, -24, 0], RightForeArm: [0, 20, 0] }, [0.03, -0.3, 0.12]),
+    le(0.36, { Hips: [0, -10, 4], Spine: [24, 8, 0], Spine1: [4, 2, 0], Neck: [-10, -4, 0],
+      LeftUpLeg: [-44, 0, 6], LeftLeg: [84, 0, 0], LeftFoot: [-32, 0, 0],
+      RightUpLeg: [-60, -22, -24], RightLeg: [18, 0, 0], RightFoot: [-12, -20, 0],
+      LeftArm: [-40, 0, -34], RightArm: [16, 0, 52], LeftForeArm: [0, -26, 0], RightForeArm: [0, 22, 0] }, [0.02, -0.26, 0.1]),
+    le(0.5, { Hips: [0, -4, 2], Spine: [16, 2, 0], Neck: [-4, 0, 0],
+      LeftUpLeg: [-28, 0, 4], LeftLeg: [50, 0, 0], LeftFoot: [-20, 0, 0],
+      RightUpLeg: [-30, -8, -10], RightLeg: [40, 0, 0], RightFoot: [-8, 0, 0],
+      LeftArm: [-20, 0, -48], RightArm: [0, 0, 56] }, [0, -0.14, 0.05]),
+    le(0.62, { Hips: [0, 0, 0], Spine: [10, 0, 0], ...Qn(0.06), ...ha }, [0, -0.06, 0]),
+  ]);
+})();

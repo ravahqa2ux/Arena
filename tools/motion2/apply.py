@@ -31,10 +31,11 @@ def main():
     core = read("core.js")
     clips = read("clips.js") if os.path.exists(os.path.join(HERE, "clips.js")) else ""
     celeb = read("celeb.js") if os.path.exists(os.path.join(HERE, "celeb.js")) else ""
+    gameplay = read("gameplay.js") if os.path.exists(os.path.join(HERE, "gameplay.js")) else ""
 
     patches = [
         # 1. módulo novo, logo antes da classe do animador do jogador
-        ("So=new q(0,0,1);class _w{", "So=new q(0,0,1);\n" + core + "\n" + celeb + "\nclass _w{"),
+        ("So=new q(0,0,1);class _w{", "So=new q(0,0,1);\n" + gameplay + "\n" + core + "\n" + celeb + "\nclass _w{"),
         # 2. estado por jogador
         ("this.idleT=t.seed%37*.13}setBody(", "this.idleT=t.seed%37*.13,anim2Init(this,t)}setBody("),
         # 3. camada de corpo (antes do olhar e dos IKs de locomoção)
@@ -54,11 +55,12 @@ def main():
     ]
     if clips:
         patches.append(("const bh={gk:", clips + "\nconst bh={gk:"))
-    extra = os.path.join(HERE, "patches_celeb.py")
-    if os.path.exists(extra):
-        ns = {}
-        exec(open(extra, encoding="utf-8").read(), ns)
-        patches += ns["PATCHES"]
+    for extra_name in ("patches_celeb.py", "patches_gameplay.py"):
+        extra = os.path.join(HERE, extra_name)
+        if os.path.exists(extra):
+            ns = {}
+            exec(open(extra, encoding="utf-8").read(), ns)
+            patches += ns["PATCHES"]
 
     for needle, repl in patches:
         n = js.count(needle)
