@@ -1,4 +1,4 @@
-# ARENA Motion 2.4 + Gameplay 2.2
+# ARENA Motion 2.5 + Gameplay 2.2
 
 Fonte das camadas injetadas em `ARENA-Jogar.html`.
 Para reaplicar num build novo do jogo (sem o patch):
@@ -17,6 +17,8 @@ O script falha se alguma âncora do bundle não for encontrada exatamente uma ve
 | `core.js` (Motion 2.4) | animação no mesmo relógio da simulação (antes ficava em câmera lenta abaixo de 20 fps; `__anim2cfg.oldDt` volta ao antigo); chute/passe de trivela com a perna girando para dentro |
 | `clips.js`, `skills.js` (Motion 2.4) | dribles do FIFA 19: `elasticoReverso`, `elasticoTriplo`, `berbaSpin` |
 | `controls.js`, `patches_controls.py` | Gameplay 2.2: trivela (LT + A / LT + B), cruzamento antecipado (LB + X) e rasteiro (LB + RB + X), linhas novas na tela de controles |
+| `core.js` (Motion 2.5) | mecânica da passada: lombar gira com a perna da frente e o peito contra-gira, tronco inclina sobre o pé de apoio, postura de condução (mais baixo, mais inclinado, braços abertos), corpo projetado no pique — `__anim2cfg.noGait`, `gait` (ganho), `noDribPose`, `noPiquePose` |
+| `controls.js`, `patches_controls.py` (Motion 2.5) | **pique**: R2/RT duas vezes e segurar (teclado: Shift duas vezes; toque: botão Correr duas vezes) = arrancada explosiva por ~1,1 s (+90% de aceleração, até +11% de velocidade, custa fôlego, recarga 1,3 s); com bola empurra a bola para a frente — `__gp2.noPique` desliga |
 | `celeb.js`, `patches_celeb.py` | sistema de comemorações |
 | `gameplay.js`, `patches_gameplay.py` | Gameplay 2.0: multiplicadores e regras novas em `globalThis.__gp2` |
 | `harness/` | testes com Playwright: `gameplay.js` (IA × IA com seed, `SEED=n`), `shottest.js` (finalização controlada), `gkangle.py` (geometria do goleiro), `studio.js` (folhas de pose) |

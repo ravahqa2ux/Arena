@@ -31,8 +31,14 @@ PATCHES = [
         '{action:"Chute de trivela",keyboard:"Espaço + L",gamepad:"LT + B"},'
         '{action:"Cruzamento forte e baixo",keyboard:"E + J",gamepad:"RB + X"},'
         '{action:"Cruzamento antecipado",keyboard:"Q + J",gamepad:"LB + X"},'
-        '{action:"Cruzamento rasteiro",keyboard:"Q + E + J",gamepad:"LB + RB + X"},',
+        '{action:"Cruzamento rasteiro",keyboard:"Q + E + J",gamepad:"LB + RB + X"},'
+        '{action:"Pique / arrancada explosiva (com bola: empurra e sai)",keyboard:"Shift duas vezes (segure)",gamepad:"R2/RT duas vezes (segure)"},',
     ),
     # camera follows with the real frame time too (it lagged behind under 20 fps)
     ("this.updateBallView(t),this.updateCamera(t)", "this.updateBallView(t),this.updateCamera(anim2FrameDt(i,t))"),
+    # Motion 2.5: pique (R2 duas vezes) — detecção uma vez por quadro, depois dos controles
+    ("this.pollKeyboardStick(e);this.previousActionKeys=e}", "arenaPique(this);this.pollKeyboardStick(e);this.previousActionKeys=e}"),
+    # velocidade e aceleração da arrancada
+    ("const E=this.playerSpeed(v),L=M*E,F=b*E,N=v.vx,_=v.vz;", "const E=this.playerSpeed(v)*arenaPiqueSpeed(v,e),L=M*E,F=b*E,N=v.vx,_=v.vz;"),
+    ("W_(v.vx,v.vz,L,F,v.data.attrs.dri/99,e)", "W_(v.vx,v.vz,L,F,v.data.attrs.dri/99,e*arenaPiqueAcc(v))"),
 ]

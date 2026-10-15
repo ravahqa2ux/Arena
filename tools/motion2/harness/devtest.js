@@ -126,6 +126,23 @@ const PREP = () => {
       out.earlyCross = kick([4], 2);
       out.groundCross = kick([4, 5], 2);
       out.normalCross = kick([], 2);
+      // 8) Motion 2.5: pique = R2/RT duas vezes (segurando). Compara com R2 só segurado.
+      const sprintRun = (taps, ball) => {
+        reset(); if (!ball) { g.owner = null; g.ball.set(20, 0.11, 20); g.ballVelocity.set(0, 0, 0); }
+        ls(0, 1); for (let i = 0; i < 25; i++) { step(1); ball ? keepBall() : (g.selected.home = me); }
+        const RT = pad.buttons[7]; const k0 = g.__piqueCount || 0, kn0 = g.__piqueKnock || 0;
+        for (let t = 0; t < taps - 1; t++) { RT.pressed = true; RT.value = 1; step(5); RT.pressed = false; RT.value = 0; step(5); }
+        ball || (g.selected.home = me);
+        RT.pressed = true; RT.value = 1;
+        let vmax = 0, x0 = me.anim.x, pq = 0, ballGap = 0, t40 = 0;
+        for (let i = 0; i < 60; i++) { ball || (g.selected.home = me); step(1); vmax = Math.max(vmax, me.anim.speed); pq = Math.max(pq, me.anim.pique || 0); ballGap = Math.max(ballGap, Math.hypot(g.ball.x - me.anim.x, g.ball.z - me.anim.z)); if (i === 39) t40 = me.anim.x - x0; }
+        RT.pressed = false; RT.value = 0;
+        return { piques: (g.__piqueCount || 0) - k0, knock: (g.__piqueKnock || 0) - kn0, vmax: +vmax.toFixed(2), dist40: +t40.toFixed(2), peakW: +pq.toFixed(2), ballGapMax: +ballGap.toFixed(2), owner: g.owner === me };
+      };
+      out.sprintHold = sprintRun(1, false);
+      out.piqueNoBall = sprintRun(2, false);
+      out.sprintHoldBall = sprintRun(1, true);
+      out.piqueBall = sprintRun(2, true);
       out.skillsTelemetry = g.telemetry.skills;
       out.state = { owner: g.owner === me, action: me.anim.action, phase: globalThis.__arena.store.get().hud.phase, restart: !!g.restart, x: +me.anim.x.toFixed(1) };
       return out;

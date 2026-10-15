@@ -262,7 +262,9 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
       s.sav += (64 * (uA - s.sa) - 5.6 * s.sav) * h;
       s.sa += s.sav * h;
     }
-    s.drive = yi(s.drive, qt(2, 6.5, s.aLf) * (1 - qt(4.5, 7.5, o)) * mv, 10, dt);
+    // Motion 2.5: no pique (R2 duas vezes) o corpo projeta para a frente e os braços socam mais forte
+    s.pq = yi(s.pq ?? 0, Eo(e.pique || 0) * free * (C && C.noPiquePose ? 0 : 1), 9, dt);
+    s.drive = yi(s.drive, Math.max(qt(2, 6.5, s.aLf) * (1 - qt(4.5, 7.5, o)), s.pq * 0.95) * mv, 10, dt);
     s.brake = yi(s.brake, qt(-3.5, -11, s.aLf) * qt(1.2, 3.5, o) * mv, 12, dt);
     // Motion 2.3: inclinação na curva (o corpo deita para dentro, proporcional à aceleração lateral)
     const bankG = C && C.bank !== undefined ? C.bank : 1;
@@ -304,6 +306,27 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
         f.getWorldQuaternion(anim2FootQ[k]);
       }
 
+    // ---------------- Motion 2.5: mecânica da passada (o que tirava o "robótico" da corrida)
+    //  - a bacia gira junto com a perna que vai à frente e os ombros giram ao contrário (contra-rotação)
+    //  - o peso passa para o pé de apoio: quadril desloca para cima dele e o lado da perna livre cai
+    //  - conduzindo a bola: corpo mais baixo e inclinado, braços mais abertos
+    let gYaw = 0, gSide = 0;
+    const gaitW = mv * qt(1.3, 2.6, o) * (1 - stW) * (C && C.noGait ? 0 : C && C.gait !== undefined ? C.gait : 1);
+    if (gaitW > 0.03) {
+      D[B.ftL].getWorldPosition(anim2V1);
+      D[B.ftR].getWorldPosition(anim2V2);
+      const hs0 = Math.sin(e.heading), hc0 = Math.cos(e.heading);
+      const fd = ((anim2V2.x - anim2V1.x) * hs0 + (anim2V2.z - anim2V1.z) * hc0) / sc; // + = pé direito à frente
+      const amp = (5 + 4 * qt(1.5, 5.5, o)) * Ms;
+      gYaw = Ne(fd / Ts(0.35, 0.75, qt(1, 5.5, o)), -1, 1) * amp * gaitW;
+      gSide = Ne((anim2V2.y - anim2V1.y) / (0.07 * sc), -1, 1) * gaitW; // + = apoio na esquerda
+      s.gYawS = yi(s.gYawS ?? 0, gYaw, 18, dt);
+      s.gSideS = yi(s.gSideS ?? 0, gSide, 12, dt);
+      gYaw = s.gYawS;
+      gSide = s.gSideS;
+    } else s.gYawS = s.gSideS = 0;
+    const dw = (r.dribW || 0) * free * (C && C.noDribPose ? 0 : 1);
+
     // ---------------- quadril (cm no espaço do ator; +x = esquerda do jogador)
     const hp = D[B.hip].position;
     const bounce = gkB * (0.5 - 0.5 * Math.cos(c * Math.PI * 2 * 2.1)) * 2.6;
@@ -311,6 +334,7 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     hp.y -= ready * 4 + tk * 14 + tired * (1 - knees) * 1.5 + bounce + s.drive * 4 + s.brake * 4.5 + s.fat * mv * 1.5;
     hp.z -= tk * 10;
     hp.x += sway * 1.4 * shiftW + gkB * Math.sin(c * 1.4 + s.ph[2]) * 1.6 + cp * 3.4;
+    hp.y -= dw * 3;
     hp.y -= cpA * 1.1;
     const hipPitch = (s.drive * 8 - s.brake * 7 + tk * 26) * Ms;
     if (Math.abs(hipPitch) > 1e-5) D[B.hip].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, hipPitch));
@@ -326,7 +350,10 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
       anim2Q1.setFromAxisAngle(Ch, s.sp * 0.6 + tk * 12 * Ms - br * bA * 0.4),
     );
     D[B.sp2].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, tk * 6 * Ms - br * bA));
-    const spR = s.sr - hipRoll * 0.8;
+    // a bacia/lombar acompanha a perna da frente e o peito gira ao contrário (sem mexer nos pés plantados)
+    if (Math.abs(gYaw) > 1e-5) (D[B.sp].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, gYaw)), D[B.sp1].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, -gYaw * 1.2)), D[B.sp2].quaternion.premultiply(anim2Q1.setFromAxisAngle(Fc, -gYaw * 0.8)));
+    if (dw > 0.01) D[B.sp].quaternion.premultiply(anim2Q1.setFromAxisAngle(Ch, dw * 7 * Ms));
+    const spR = s.sr - hipRoll * 0.8 + gSide * 2.4 * Ms;
     if (Math.abs(spR) > 1e-6) D[B.sp1].quaternion.premultiply(anim2Q1.setFromAxisAngle(So, spR));
 
     // ---------------- ombros (respiração, cansaço)
@@ -344,7 +371,7 @@ function anim2Body(r, e, dt, D, a, g, v, o, T) {
     const walkW = qt(0.5, 1.2, o) * (1 - qt(2.4, 3.6, o)) * mv;
     const armFwd = -ready * 6 * Ms - idleArm * 3 * Ms - s.sa;
     // na corrida, braços um pouco mais abertos: as mãos não cruzam a linha do peito
-    const armOut = (ready * 9 + s.armOut * free * (0.4 + 0.6 * g) + gkB * 4 + qt(1.6, 4.2, o) * 10 * mv) * Ms;
+    const armOut = (ready * 9 + s.armOut * free * (0.4 + 0.6 * g) + gkB * 4 + qt(1.6, 4.2, o) * 10 * mv + dw * 9) * Ms;
     for (let k = 0; k < 2; k++) {
       const sg = k ? -1 : 1;
       const arm = D[k ? B.armR : B.armL], fa = D[k ? B.faR : B.faL];
